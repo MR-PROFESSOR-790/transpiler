@@ -1,10 +1,7 @@
 import os
 import sys
-from utils.hex_utils import (
-    hex_to_bytes,
-    pad_hex,
-    reverse_endian,
-)
+import json
+from utils.hex_utils import hex_to_bytes
 from utils.constants import EVM_OPCODES
 from utils.logger import logger
 
@@ -20,6 +17,14 @@ class Instruction:
         if self.operand:
             return f"{self.offset:04x}: {self.mnemonics} {self.operand}"
         return f"{self.offset:04x}: {self.mnemonics}"
+
+    def to_dict(self):
+        return {
+            "offset": self.offset,
+            "opcode": f"0x{self.opcode:02x}",
+            "mnemonics": self.mnemonics,
+            "operand": self.operand or ""
+        }
 
 
 class EVMBytecodeParser:
@@ -44,9 +49,7 @@ class EVMBytecodeParser:
                 operand_end = operand_start + push_size
 
                 if operand_end > length:
-                    logger.warning(
-                        f"Bytecode ends unexpectedly at PUSH offset {self.offset}, expected {push_size} bytes."
-                    )
+                    logger.warning(f"Bytecode ends unexpectedly at PUSH offset {self.offset}, expected {push_size} bytes.")
                     operand_bytes = bytecode_bytes[operand_start:]
                     operand = operand_bytes.hex().ljust(push_size * 2, '0')
                 else:
@@ -56,8 +59,8 @@ class EVMBytecodeParser:
                 self.instructions.append(
                     Instruction(self.offset, opcode, mnemonic, operand)
                 )
-                logger.debug(f"Push Operation: {operand}")
-                self.offset += push_size + 1
+                logger.debug(f"PUSH operand [{push_size} bytes]: {operand}")
+                self.offset += 1 + push_size
             else:
                 if mnemonic.startswith("UNKNOWN"):
                     logger.warning(f"Unknown opcode at offset {self.offset}: 0x{opcode:02x}")
@@ -70,8 +73,8 @@ class EVMBytecodeParser:
         return self.instructions
 
     def print_instructions(self):
-        for instruction in self.instructions:
-            print(instruction)
+        for instr in self.instructions:
+            print(instr)
 
     def to_assembly(self, output_file):
         try:
@@ -81,6 +84,14 @@ class EVMBytecodeParser:
             logger.info(f"Assembly code written to {output_file}")
         except Exception as e:
             logger.exception(f"Failed to write assembly to {output_file}: {e}")
+
+    def to_json(self, json_file):
+        try:
+            with open(json_file, 'w') as f:
+                json.dump([instr.to_dict() for instr in self.instructions], f, indent=2)
+            logger.info(f"JSON instruction dump written to {json_file}")
+        except Exception as e:
+            logger.exception(f"Failed to write JSON output: {e}")
 
 
 def read_bytecode_from_file(file_path):
@@ -95,7 +106,6 @@ def read_bytecode_from_file(file_path):
         content = content[2:]
     bytecode = ''.join(content.split()).lower()
 
-    # Validate bytecode format
     if not all(c in '0123456789abcdef' for c in bytecode):
         logger.error(f"Invalid bytecode format in file: {file_path}")
         raise ValueError(f"Invalid bytecode format in file: {file_path}")
@@ -109,18 +119,16 @@ if __name__ == "__main__":
         print("Usage: python evm_bytecode_parser.py <input_file> <output_file>")
         sys.exit(1)
 
-    file_path = sys.argv[1]
+    input_file = sys.argv[1]
     output_file = sys.argv[2]
+    json_output = output_file + ".json"
 
     try:
-        bytecode = read_bytecode_from_file(file_path)
+        bytecode = read_bytecode_from_file(input_file)
         parser = EVMBytecodeParser(bytecode)
         parser.parse()
         parser.print_instructions()
         parser.to_assembly(output_file)
-    except FileNotFoundError as e:
-        logger.exception(f"Failed to parse bytecode: {e}")
-    except ValueError as e:
-        logger.exception(f"Invalid bytecode: {e}")
+        parser.to_json(json_output)
     except Exception as e:
-        logger.exception(f"Unexpected error: {e}")
+        logger.exception(f"Error occurred: {e}")
