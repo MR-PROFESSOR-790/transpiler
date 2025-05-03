@@ -1,0 +1,32 @@
+sol2riscv/
+├── README.md
+├── run.sh
+├── requirements.txt
+├── contracts/
+│   └── test.sol
+├── evm/
+│   └── evm_bytecode_parser.py
+├── transpiler/
+│   ├── __init__.py
+│   ├── main.py
+│   ├── opcode_mapping.py
+│   ├── stack_emulator.py
+│   ├── memory_model.py
+│   └── riscv_emitter.py
+├── output/
+│   ├── test.evm
+│   ├── test.asm
+│   ├── test.elf
+│   └── test.log
+├── riscv/
+│   ├── linker.ld
+│   └── runtime.s
+├── vm/
+│   └── simple_riscv_vm.py
+└── utils/
+    ├── hex_utils.py
+    ├── logger.py
+    ├── file_ops.py
+    └── constants.py
+
+
