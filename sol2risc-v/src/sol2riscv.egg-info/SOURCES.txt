@@ -1,0 +1,10 @@
+pyproject.toml
+src/evm/evm_bytecode_parser.py
+src/sol2riscv.egg-info/PKG-INFO
+src/sol2riscv.egg-info/SOURCES.txt
+src/sol2riscv.egg-info/dependency_links.txt
+src/sol2riscv.egg-info/top_level.txt
+src/utils/constants.py
+src/utils/file_ops.py
+src/utils/hex_utils.py
+src/utils/logger.py

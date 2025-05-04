@@ -67,7 +67,7 @@ EVM_OPCODES = {
 }
 
 
-for i in range(1, 33):
+for i in range(0, 33):
     EVM_OPCODES[0x5F + i] = f'PUSH{i}'
     
 for i in range(0, 17):

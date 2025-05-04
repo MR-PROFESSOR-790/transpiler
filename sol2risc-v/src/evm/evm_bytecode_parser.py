@@ -1,9 +1,9 @@
 import os
 import sys
 import json
-from ..utils.hex_utils import hex_to_bytes
-from ..utils.constants import EVM_OPCODES
-from ..utils.logger import logger
+from utils.hex_utils import hex_to_bytes
+from utils.constants import EVM_OPCODES
+from utils.logger import logger
 
 
 class Instruction:
