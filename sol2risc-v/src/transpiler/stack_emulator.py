@@ -14,6 +14,7 @@ class StackEmulator:
 
     def push(self, value):
         if self.stack_ptr >= self.stack_size:
+            logger.error(f"Stack overflow: tried to push {value} at position {self.stack_ptr}")
             raise OverflowError("EVM Stack overflow")
         self.stack.append(value)
         self.stack_ptr += 1
@@ -21,6 +22,7 @@ class StackEmulator:
 
     def pop(self):
         if self.stack_ptr <= 0:
+            logger.error("Stack underflow: tried to pop from empty stack")
             raise IndexError("EVM Stack underflow")
         self.stack_ptr -= 1
         value = self.stack.pop()
@@ -28,17 +30,48 @@ class StackEmulator:
         return value
 
     def peek(self, depth=0):
+        """
+        Peek at a value in the stack without removing it.
+        Args:
+            depth: How far down the stack to look (0 = top of stack)
+        Returns:
+            The value at the specified depth, or 0 if stack is empty/out of bounds
+        """
+        # Add bounds checking
+        if depth < 0:
+            logger.error(f"Invalid peek depth: {depth}")
+            return 0
+        
+        if self.stack_ptr == 0:
+            logger.warning("Cannot peek: stack is empty, returning 0")
+            return 0
+
         if depth >= self.stack_ptr:
-            raise IndexError("EVM stack peek out of bounds")
+            logger.warning(f"Stack peek out of bounds: depth={depth}, stack_ptr={self.stack_ptr}, returning 0")
+            return 0
+            
         value = self.stack[self.stack_ptr - 1 - depth]
         logger.debug(f"Peeked at depth {depth}: {value}")
         return value
 
     def set(self, depth, value):
+        """
+        Set a value at a specific depth in the stack.
+        Args:
+            depth: How far down the stack to set (0 = top of stack)
+            value: Value to set
+        """
+        if depth < 0:
+            logger.error(f"Invalid set depth: {depth}")
+            raise ValueError("Set depth cannot be negative")
+            
         if depth >= self.stack_ptr:
-            raise IndexError("EVM stack set out of bounds")
+            logger.error(f"Stack set out of bounds: depth={depth}, stack_ptr={self.stack_ptr}")
+            return False
+            
         self.stack[self.stack_ptr - 1 - depth] = value
         logger.debug(f"Set value at depth {depth} to {value}")
+        return True
 
     def dump(self):
         return self.stack[:self.stack_ptr][::-1]

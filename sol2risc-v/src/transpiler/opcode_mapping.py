@@ -7,6 +7,7 @@ logger = logging.getLogger(__name__)
 
 class OpcodeMapping:
     def __init__(self):
+        # Base opcode map containing all standard EVM opcodes
         self.opcode_map = {
             # Arithmetic
             "STOP":      {"instr": "nop", "args": 0},
@@ -21,6 +22,12 @@ class OpcodeMapping:
             "MULMOD":    {"instr": "custom_mulmod", "args": 3},
             "EXP":       {"instr": "custom_exp", "args": 2},
             "SIGNEXTEND":{"instr": "custom_signextend", "args": 2},
+            "CALLVALUE": {"instr": "custom_callvalue", "args": 0},
+            "CALLDATASIZE": {"instr": "custom_calldatasize", "args": 0},
+            "CALLDATALOAD": {"instr": "custom_calldataload", "args": 1},
+            "CODECOPY": {"instr": "custom_codecopy", "args": 3},
+            "PUSH0": {"instr": "custom_push", "args": 0},
+            "SHA3": {"instr": "custom_sha3", "args": 2},
 
             # Bitwise / Comparison
             "LT":        {"instr": "sltu", "args": 2},  # unsigned
@@ -51,13 +58,31 @@ class OpcodeMapping:
             "JUMPI":     {"instr": "custom_jumpi", "args": 2},
             "PC":        {"instr": "custom_pc", "args": 0},
             "JUMPDEST":  {"instr": "label", "args": 0},
+            "CALL":      {"instr": "custom_call", "args": 7},
+            "STATICCALL": {"instr": "custom_staticcall", "args": 6},
+            "DELEGATECALL": {"instr": "custom_delegatecall", "args": 6},
+
+            # Environment operations
+            "ADDRESS": {"instr": "custom_address", "args": 0},
+            "BALANCE": {"instr": "custom_balance", "args": 1},
+            "ORIGIN": {"instr": "custom_origin", "args": 0},
+            "CALLER": {"instr": "custom_caller", "args": 0},
+            "GASPRICE": {"instr": "custom_gasprice", "args": 0},
+
+            # Block operations
+            "BLOCKHASH": {"instr": "custom_blockhash", "args": 1},
+            "COINBASE": {"instr": "custom_coinbase", "args": 0},
+            "TIMESTAMP": {"instr": "custom_timestamp", "args": 0},
+            "NUMBER": {"instr": "custom_number", "args": 0},
+            "DIFFICULTY": {"instr": "custom_difficulty", "args": 0},
+            "GASLIMIT": {"instr": "custom_gaslimit", "args": 0},
 
             # Duplication and Swap
             **{f"DUP{i}": {"instr": f"custom_dup{i}", "args": 0} for i in range(1, 17)},
             **{f"SWAP{i}": {"instr": f"custom_swap{i}", "args": 0} for i in range(1, 17)},
 
             # Push Operations
-            **{f"PUSH{i}": {"instr": "custom_push", "args": 0} for i in range(1, 33)},
+            **{f"PUSH{i}": {"instr": "custom_push", "args": 0} for i in range(0, 33)},  # Include PUSH0
 
             # Logging
             "LOG0":      {"instr": "custom_log0", "args": 2},
@@ -74,24 +99,30 @@ class OpcodeMapping:
         }
 
     def get_riscv_mapping(self, evm_opcode, actual_args_count=None):
+        """Get RISC-V mapping for an EVM opcode with improved error handling."""
         op = evm_opcode.upper()
 
+        # Handle special cases first
         if self.is_push_opcode(op) or self.is_dup_opcode(op) or self.is_swap_opcode(op):
             logger.debug(f"Opcode '{op}' matched as PUSH/DUP/SWAP.")
-        elif op not in self.opcode_map:
+            return self.opcode_map.get(op) or {"instr": "custom_push", "args": 0}
+
+        # Handle standard opcodes
+        if op not in self.opcode_map:
             logger.error(f"Unknown EVM opcode '{op}'.")
-            raise NotImplementedError(f"Unsupported EVM opcode '{op}'.")
+            return {"instr": "invalid", "args": 0}  # Return invalid instead of raising exception
 
         mapping = self.opcode_map[op]
-
+        
+        # Validate arguments if provided
         if actual_args_count is not None and mapping["args"] != actual_args_count:
             logger.warning(f"Opcode '{op}' expects {mapping['args']} args, got {actual_args_count}.")
 
-        logger.info(f"Mapped EVM opcode '{op}' to RISC-V instruction '{mapping['instr']}' with {mapping['args']} args.")
+        logger.debug(f"Mapped EVM opcode '{op}' to RISC-V instruction '{mapping['instr']}'")
         return mapping
 
     def is_push_opcode(self, opcode):
-        return bool(re.fullmatch(r"PUSH([1-9]|1[0-9]|2[0-9]|3[0-2])", opcode.upper()))
+        return bool(re.fullmatch(r"PUSH([0-9]|[1-2][0-9]|3[0-2])", opcode.upper()))  # Include PUSH0
 
     def is_dup_opcode(self, opcode):
         return bool(re.fullmatch(r"DUP([1-9]|1[0-6])", opcode.upper()))
@@ -103,12 +134,18 @@ class OpcodeMapping:
         return sorted(self.opcode_map.keys())
 
     def add_mapping(self, evm_opcode, riscv_instr, args):
+        """Add a new opcode mapping with improved error handling."""
         op = evm_opcode.upper()
+        
+        # Check if opcode already exists
         if op in self.opcode_map:
-            logger.error(f"Cannot add '{op}': already exists.")
-            raise ValueError(f"Opcode '{op}' already exists.")
+            if self.opcode_map[op]["instr"] == riscv_instr and self.opcode_map[op]["args"] == args:
+                logger.debug(f"Opcode '{op}' already mapped identically")
+                return
+            logger.debug(f"Updating existing mapping for '{op}'")
+            
         self.opcode_map[op] = {"instr": riscv_instr, "args": args}
-        logger.info(f"Added opcode mapping: {op} -> {riscv_instr} (args: {args})")
+        logger.info(f"Added/Updated opcode mapping: {op} -> {riscv_instr} (args: {args})")
 
     def remove_mapping(self, evm_opcode):
         op = evm_opcode.upper()
