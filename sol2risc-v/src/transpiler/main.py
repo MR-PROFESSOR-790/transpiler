@@ -6,291 +6,373 @@ from .riscv_emitter import RISCVEmitter
 from .register_allocator import RegisterAllocator
 from .stack_manager import StackManager
 from .opcode_mapping import OpcodeMapping
+from .evm_parser import EVMAssemblyParser
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-class GasCosts:
-    SLOAD = 200
-    SSTORE_NEW = 20000
-    SSTORE_UPDATE = 5000
-    MLOAD = 3
-    MSTORE = 3
-    SHA3 = 30
-    CREATE = 32000
-    CALL = 700
-    LOG_BASE = 375
-    LOG_TOPIC = 375
-    LOG_DATA = 8
+class EVMTranspiler:
+    def __init__(self):
+        self.memory_model = MemoryModel()
+        self.register_allocator = RegisterAllocator()
+        self.stack_manager = StackManager(self.register_allocator)
+        self.opcode_mapping = OpcodeMapping()
+        self.riscv_emitter = RISCVEmitter(self.register_allocator, self.memory_model)
+        self.evm_parser = EVMAssemblyParser()
+        self.labels = {}
+        self.basic_blocks = {}
+        self.jumpdests = set()
+        self.current_address = 0
 
-def parse_instruction(line):
-    """Parse an EVM instruction line into (address, opcode, value)."""
-    # Handle UNKNOWN opcodes and hex values
-    if "UNKNOWN" in line:
-        match = re.match(r'([0-9a-fA-F]+):\s+UNKNOWN_0x([0-9a-fA-F]+)', line)
-        if match:
-            addr = int(match.group(1), 16)
-            value = int(match.group(2), 16)
-            return addr, "UNKNOWN", value
-    
-    match = re.match(r'([0-9a-fA-F]+):\s+(\w+)(?:\s+([0-9a-fA-F]+))?', line)
-    if match:
-        addr = int(match.group(1), 16)
-        opcode = match.group(2)
-        value = match.group(3)
-        if value:
-            value = int(value, 16)
-        return addr, opcode, value
-    return None, None, None
+    def transpile(self, input_file: str, output_file: str):
+        """Main transpilation process"""
+        try:
+            # Parse EVM assembly
+            logger.info(f"Parsing EVM assembly from {input_file}")
+            instructions = self.evm_parser.parse_file(input_file)
+            
+            # Initialize runtime
+            self._initialize_runtime()
+            
+            # First pass: analyze code structure
+            self._analyze_code_structure(instructions)
+            
+            # Second pass: generate RISC-V code
+            for instr in instructions:
+                addr = instr['address']
+                opcode = instr['opcode']
+                value = instr['value']
+                
+                # Handle labels
+                if addr in self.labels:
+                    self.riscv_emitter.emit_label(f"L_{addr:x}")
+                
+                # Track gas costs
+                gas_cost = self._get_gas_cost(opcode)
+                if gas_cost > 0:
+                    self._emit_gas_check(gas_cost)
+                
+                # Process instruction
+                self._process_instruction(addr, opcode, value)
 
-def transpile_evm_to_riscv(input_file, output_file):
-    """Transpile EVM bytecode to RISC-V assembly."""
-    # Initialize components
-    memory_model = MemoryModel()
-    register_allocator = RegisterAllocator()
-    stack_manager = StackManager(register_allocator)
-    opcode_mapping = OpcodeMapping()
-    riscv_emitter = RISCVEmitter(register_allocator, memory_model)
+            # Finalize code generation
+            assembly = self._generate_final_assembly()
+            
+            # Write output
+            with open(output_file, 'w') as f:
+                f.write(assembly)
+            logger.info(f"Successfully generated RISC-V assembly: {output_file}")
+            
+        except Exception as e:
+            logger.error(f"Transpilation failed: {str(e)}")
+            raise
 
-    # Add comprehensive EVM opcode mappings
-    opcode_mapping.add_mapping("CALLVALUE", "custom_callvalue", 0)
-    opcode_mapping.add_mapping("CALLDATASIZE", "custom_calldatasize", 0)
-    opcode_mapping.add_mapping("CALLDATALOAD", "custom_calldataload", 1)
-    opcode_mapping.add_mapping("CODECOPY", "custom_codecopy", 3)
-    opcode_mapping.add_mapping("PUSH0", "custom_push", 0)
-    opcode_mapping.add_mapping("RETURN", "custom_return", 2)
-    opcode_mapping.add_mapping("REVERT", "custom_revert", 2)
-    opcode_mapping.add_mapping("SLOAD", "custom_sload", 1)
-    opcode_mapping.add_mapping("SSTORE", "custom_sstore", 2)
-    opcode_mapping.add_mapping("SHR", "srl", 2)
-    opcode_mapping.add_mapping("LOG2", "custom_log2", 4)
-    opcode_mapping.add_mapping("CREATE", "custom_create", 3)
-    opcode_mapping.add_mapping("CREATE2", "custom_create2", 4)
-    opcode_mapping.add_mapping("DELEGATECALL", "custom_delegatecall", 6)
-    opcode_mapping.add_mapping("STATICCALL", "custom_staticcall", 6)
-    opcode_mapping.add_mapping("CALL", "custom_call", 7)
-    opcode_mapping.add_mapping("BALANCE", "custom_balance", 1)
-    opcode_mapping.add_mapping("EXTCODEHASH", "custom_extcodehash", 1)
-    opcode_mapping.add_mapping("BLOCKHASH", "custom_blockhash", 1)
-    opcode_mapping.add_mapping("SHA3", "custom_sha3", 2)
-    opcode_mapping.add_mapping("LOG0", "custom_log0", 2)
-    opcode_mapping.add_mapping("LOG1", "custom_log1", 3)
-    opcode_mapping.add_mapping("LOG2", "custom_log2", 4)
-    opcode_mapping.add_mapping("LOG3", "custom_log3", 5)
-    opcode_mapping.add_mapping("LOG4", "custom_log4", 6)
+    def _initialize_runtime(self):
+        """Initialize RISC-V runtime environment with all required components"""
+        self.riscv_emitter.emit("""
+        .section .data
+            .align 3
+        memory_area:     .space 65536    # EVM memory
+        storage_area:    .space 65536    # Storage
+        calldata_area:   .space 4096     # Calldata
+        returndata:      .space 4096     # Return data
+        event_buffer:    .space 8192     # Event logs
+        
+        .section .text
+            .align 2
+            .global _start
+            
+        _start:
+            # Runtime setup
+            addi sp, sp, -1024
+            sd ra, 1016(sp)
+            sd s0, 1008(sp)
+            addi s0, sp, 1024
+            
+            # Initialize pointers and counters
+            la s1, memory_area      # s1 = memory base
+            la s2, storage_area     # s2 = storage base
+            la s3, calldata_area    # s3 = calldata base
+            la s4, returndata       # s4 = return data
+            la s5, event_buffer     # s5 = event buffer
+            li s11, 1000000        # Initial gas limit
+            
+        # Error handlers and common operations
+        """)
+        
+        # Add arithmetic operations
+        self._emit_runtime_operations()
 
-    # Add RISC-V specific memory layout
-    riscv_emitter.emit("""
-    .section .data
-    .align 3
-memory_area:    .space 65536  # 64KB EVM memory space
-storage_area:   .space 65536  # 64KB storage space
-calldata_area:  .space 4096   # 4KB calldata space
-    
-    .section .text
-    .align 2
-    .global _start
+    def _emit_runtime_operations(self):
+        """Emit common runtime operations"""
+        self.riscv_emitter.emit("""
+        # Memory operations
+        mstore_impl:
+            add t0, s1, a0        # memory base + offset
+            sd a1, 0(t0)          # store value
+            ret
+            
+        mload_impl:
+            add t0, s1, a0        # memory base + offset
+            ld a0, 0(t0)          # load value
+            ret
+            
+        # Storage operations
+        sstore_impl:
+            slli t0, a0, 3        # multiply key by 8
+            add t0, s2, t0        # storage base + offset
+            ld t1, 0(t0)          # load old value
+            beq t1, a1, skip_store # skip if unchanged
+            sd a1, 0(t0)          # store new value
+        skip_store:
+            ret
+            
+        sload_impl:
+            slli t0, a0, 3        # multiply key by 8
+            add t0, s2, t0        # storage base + offset
+            ld a0, 0(t0)          # load value
+            ret
+            
+        # Gas checking
+        check_gas:
+            sub t0, s11, a0       # subtract required gas
+            bltz t0, out_of_gas   # branch if negative
+            mv s11, t0            # update gas counter
+            ret
+            
+        # Error handlers
+        out_of_gas:
+            li a0, 2              # out of gas error code
+            j revert_handler
+            
+        revert_handler:
+            li a7, 93             # exit syscall
+            ecall
+        """)
 
-_start:
-    # Setup runtime environment
-    addi sp, sp, -1024        # Allocate stack frame
-    sd ra, 1016(sp)           # Save return address
-    sd s0, 1008(sp)           # Save frame pointer
-    addi s0, sp, 1024         # Setup new frame pointer
-    
-    # Initialize memory pointers
-    la s1, memory_area        # s1 = memory base
-    la s2, storage_area       # s2 = storage base
-    la s3, calldata_area      # s3 = calldata base
-    li s11, 1000000          # Initial gas limit
+    def _analyze_code_structure(self, instructions):
+        """Analyze code structure and collect labels"""
+        for instr in instructions:
+            addr = instr['address']
+            opcode = instr['opcode']
+            value = instr['value']
+            
+            if opcode == 'JUMPDEST':
+                self.labels[addr] = f"L_{addr:x}"
+                self.basic_blocks[addr] = []
+            elif opcode in ['JUMP', 'JUMPI']:
+                if value is not None:
+                    self.labels[value] = f"L_{value:x}"
 
-# Common EVM operations
-sload_impl:
-    # Input: a0 = storage key
-    # Output: a0 = value
-    slli t0, a0, 3           # Multiply key by 8 (64-bit values)
-    add t0, s2, t0           # Add storage base
-    ld a0, 0(t0)            # Load value
-    ret
+    def _get_gas_cost(self, opcode: str) -> int:
+        """Get gas cost for an opcode"""
+        return 3  # Default gas cost
 
-sstore_impl:
-    # Input: a0 = key, a1 = value
-    slli t0, a0, 3
-    add t0, s2, t0
-    ld t1, 0(t0)            # Load old value
-    beq t1, a1, skip_store  # Skip if unchanged
-    li a0, GAS_SSTORE_NEW
-    jal check_gas
-    sd a1, 0(t0)
-skip_store:
-    ret
+    def _emit_gas_check(self, cost: int):
+        """Emit gas checking code"""
+        self.riscv_emitter.emit(f"""
+            li a0, {cost}         # gas cost
+            jal check_gas
+        """)
 
-mload_impl:
-    # Input: a0 = offset
-    # Output: a0 = value
-    add t0, s1, a0
-    ld a0, 0(t0)
-    ret
+    def _process_instruction(self, addr: int, opcode: str, value: any):
+        """Process EVM instruction with enhanced handling"""
+        try:
+            # Handle unknown opcodes
+            if opcode.startswith("UNKNOWN_"):
+                self.riscv_emitter.emit(f"    # Unknown opcode at {addr:x}: {opcode}")
+                return
 
-mstore_impl:
-    # Input: a0 = offset, a1 = value
-    add t0, s1, a0
-    sd a1, 0(t0)
-    ret
+            # Regular instruction handling
+            if opcode.startswith('PUSH'):
+                self._handle_push(value)
+            elif opcode in ['JUMP', 'JUMPI']:
+                self._handle_jump(opcode, addr)
+            elif opcode in ['ADD', 'SUB', 'MUL', 'DIV', 'AND', 'OR', 'XOR', 'EQ', 'LT', 'GT', 'SHL', 'SHR', 'SAR']:
+                self._handle_arithmetic(opcode)
+            elif opcode in ['SLOAD', 'SSTORE']:
+                self._handle_storage(opcode)
+            elif opcode in ['MLOAD', 'MSTORE']:
+                self._handle_memory(opcode)
+            elif opcode.startswith('LOG'):
+                self._handle_log(opcode)
+            elif opcode in ['CREATE', 'CREATE2']:
+                self._handle_create(opcode)
+            elif opcode == 'SHA3':
+                self._handle_sha3()
+            elif opcode == 'JUMPDEST':
+                self.jumpdests.add(addr)
+            else:
+                self._handle_basic_opcode(opcode)
+        except Exception as e:
+            logger.warning(f"Error processing instruction at {addr:x}: {opcode} - {str(e)}")
+            self.riscv_emitter.emit(f"    # Failed to process: {opcode} at {addr:x}")
 
-sha3_impl:
-    # Input: a0 = offset, a1 = size
-    jal check_memory_bounds
-    # ... SHA3 implementation ...
-    ret
+    def _handle_push(self, value):
+        """Handle PUSH operations"""
+        self.riscv_emitter.emit(f"""
+            li t0, {value}        # load immediate value
+            addi sp, sp, -8       # adjust stack pointer
+            sd t0, 0(sp)          # store value on stack
+        """)
 
-log_impl:
-    # Input: a0 = offset, a1 = size, a2 = topics
-    jal check_memory_bounds
-    # ... Log implementation ...
-    ret
+    def _handle_jump(self, opcode, addr):
+        """Handle JUMP and JUMPI instructions"""
+        if opcode == 'JUMPI':
+            self.riscv_emitter.emit(f"""
+                # Conditional jump
+                ld t1, 0(sp)          # condition
+                addi sp, sp, 8
+                ld t0, 0(sp)          # destination
+                addi sp, sp, 8
+                beqz t1, skip_{addr:x}   # if condition is 0, skip jump
+                j L_{addr:x}           # jump to destination
+            skip_{addr:x}:
+            """)
+        else:  # JUMP
+            self.riscv_emitter.emit("""
+                # Unconditional jump
+                ld t0, 0(sp)          # destination
+                addi sp, sp, 8
+                j L_{t0:x}           # jump to destination
+            """)
 
-revert_impl:
-    # Input: a0 = offset, a1 = size
-    li a7, 93               # exit syscall
-    li a0, 1               # Error status
-    ecall
+    def _handle_arithmetic(self, opcode):
+        """Handle arithmetic operations"""
+        op_map = {
+            'ADD': 'add',
+            'SUB': 'sub',
+            'MUL': 'mul',
+            'DIV': 'div',
+            'AND': 'and',
+            'OR': 'or',
+            'XOR': 'xor',
+            'EQ': 'sub t0, zero, t0; seqz t0, t0',  # Special case for equality
+            'LT': 'slt',
+            'GT': 'sgt',
+            'SHL': 'sll',
+            'SHR': 'srl',
+            'SAR': 'sra'
+        }
 
-return_impl:
-    # Input: a0 = offset, a1 = size
-    li a7, 93              # exit syscall
-    li a0, 0              # Success status
-    ecall
+        if opcode in op_map:
+            self.riscv_emitter.emit(f"""
+                ld t1, 0(sp)          # second operand
+                addi sp, sp, 8
+                ld t0, 0(sp)          # first operand
+                addi sp, sp, 8
+                {op_map[opcode]} t0, t0, t1
+                addi sp, sp, -8
+                sd t0, 0(sp)          # push result
+            """)
 
-check_gas:
-    # Input: a0 = required gas
-    addi t0, s11, 0          # Current gas
-    sub t0, t0, a0           # Subtract required
-    bltz t0, out_of_gas      # Branch if negative
-    addi s11, t0, 0          # Update gas counter
-    ret
+    def _handle_sha3(self):
+        """Handle SHA3 (Keccak) operation"""
+        self.riscv_emitter.emit("""
+            ld a1, 0(sp)          # size
+            addi sp, sp, 8
+            ld a0, 0(sp)          # offset
+            addi sp, sp, 8
+            jal ra, sha3_impl     # call SHA3 implementation
+            addi sp, sp, -8
+            sd a0, 0(sp)          # push result
+        """)
 
-out_of_gas:
-    li a0, 2                 # Out of gas error code
-    j revert_impl
+    def _handle_log(self, opcode):
+        """Handle LOG operations"""
+        topics = int(opcode[3]) if len(opcode) > 3 else 0
+        self.riscv_emitter.emit(f"""
+            # LOG{topics} operation
+            mv a2, {topics}       # number of topics
+            ld a1, 0(sp)         # size
+            addi sp, sp, 8
+            ld a0, 0(sp)         # offset
+            addi sp, sp, 8
+            jal log_impl         # call log implementation
+        """)
 
-check_memory_bounds:
-    # Input: a0 = offset, a1 = size
-    add t0, a0, a1           # End address
-    li t1, 65536            # Memory limit
-    bgeu t0, t1, memory_error
-    ret
+    def _handle_create(self, opcode):
+        """Handle CREATE/CREATE2 operations"""
+        self.riscv_emitter.emit(f"""
+            # {opcode} operation
+            ld a2, 0(sp)         # value
+            addi sp, sp, 8
+            ld a1, 0(sp)         # offset
+            addi sp, sp, 8
+            ld a0, 0(sp)         # size
+            addi sp, sp, 8
+            jal create_impl      # call create implementation
+            addi sp, sp, -8
+            sd a0, 0(sp)        # push created address
+        """)
 
-memory_error:
-    li a0, 3                # Memory access error
-    j revert_impl
-    """)
+    def _handle_storage(self, opcode):
+        """Handle storage operations"""
+        if opcode == 'SSTORE':
+            self.riscv_emitter.emit("""
+                ld a1, 0(sp)          # value
+                addi sp, sp, 8
+                ld a0, 0(sp)          # key
+                addi sp, sp, 8
+                jal sstore_impl
+            """)
+        else:  # SLOAD
+            self.riscv_emitter.emit("""
+                ld a0, 0(sp)          # key
+                addi sp, sp, 8
+                jal sload_impl
+                addi sp, sp, -8
+                sd a0, 0(sp)          # push result
+            """)
+
+    def _handle_memory(self, opcode):
+        """Handle memory operations"""
+        if opcode == 'MSTORE':
+            self.riscv_emitter.emit("""
+                ld a1, 0(sp)          # value
+                addi sp, sp, 8
+                ld a0, 0(sp)          # offset
+                addi sp, sp, 8
+                jal mstore_impl
+            """)
+        else:  # MLOAD
+            self.riscv_emitter.emit("""
+                ld a0, 0(sp)          # offset
+                addi sp, sp, 8
+                jal mload_impl
+                addi sp, sp, -8
+                sd a0, 0(sp)          # push result
+            """)
+
+    def _handle_basic_opcode(self, opcode):
+        """Handle basic arithmetic and logic operations"""
+        mapping = self.opcode_mapping.get_riscv_mapping(opcode)
+        if mapping:
+            self.riscv_emitter.emit(f"""
+                ld a1, 0(sp)          # second operand
+                addi sp, sp, 8
+                ld a0, 0(sp)          # first operand
+                addi sp, sp, 8
+                {mapping['instr']} t0, a0, a1
+                addi sp, sp, -8
+                sd t0, 0(sp)          # push result
+            """)
+
+    def _generate_final_assembly(self):
+        """Generate final optimized RISC-V assembly"""
+        return self.riscv_emitter.get_assembly()
+
+def main():
+    if len(sys.argv) != 3:
+        print("Usage: python -m transpiler.main <input.asm> <output.s>")
+        sys.exit(1)
 
     try:
-        with open(input_file, 'r') as f:
-            lines = f.readlines()
-
-        current_block = None
-        stack_depth = 0
-        max_stack_depth = 1024
-
-        for line in lines:
-            addr, opcode, value = parse_instruction(line.strip())
-            if not opcode:
-                continue
-
-            # Check stack overflow
-            if opcode in ["PUSH1", "PUSH2", "DUP1", "SWAP1"]:
-                stack_depth += 1
-                if stack_depth > max_stack_depth:
-                    raise Exception("Stack overflow")
-
-            # Map EVM instructions to RISC-V
-            if opcode == "PUSH1":
-                riscv_emitter.emit(f"    li t0, {value}")
-                riscv_emitter.emit("    addi sp, sp, -8")
-                riscv_emitter.emit("    sd t0, 0(sp)")
-            
-            elif opcode == "SLOAD":
-                riscv_emitter.emit("    ld a0, 0(sp)")
-                riscv_emitter.emit("    addi sp, sp, 8")
-                riscv_emitter.emit("    jal sload_impl")
-                riscv_emitter.emit("    addi sp, sp, -8")
-                riscv_emitter.emit("    sd a0, 0(sp)")
-            
-            elif opcode == "SSTORE":
-                riscv_emitter.emit("    li a0, {}".format(GasCosts.SSTORE_NEW))
-                riscv_emitter.emit("    jal check_gas")
-                riscv_emitter.emit("    ld a1, 0(sp)")
-                riscv_emitter.emit("    addi sp, sp, 8")
-                riscv_emitter.emit("    ld a0, 0(sp)")
-                riscv_emitter.emit("    addi sp, sp, 8")
-                riscv_emitter.emit("    jal sstore_impl")
-            
-            elif opcode == "MLOAD":
-                riscv_emitter.emit("    ld a0, 0(sp)")
-                riscv_emitter.emit("    addi sp, sp, 8")
-                riscv_emitter.emit("    jal mload_impl")
-                riscv_emitter.emit("    addi sp, sp, -8")
-                riscv_emitter.emit("    sd a0, 0(sp)")
-            
-            elif opcode == "MSTORE":
-                riscv_emitter.emit("    ld a1, 0(sp)")
-                riscv_emitter.emit("    addi sp, sp, 8")
-                riscv_emitter.emit("    ld a0, 0(sp)")
-                riscv_emitter.emit("    addi sp, sp, 8")
-                riscv_emitter.emit("    jal mstore_impl")
-            
-            elif opcode == "SHA3":
-                riscv_emitter.emit("    li a0, {}".format(GasCosts.SHA3))
-                riscv_emitter.emit("    jal check_gas")
-                riscv_emitter.emit("    ld a1, 0(sp)")
-                riscv_emitter.emit("    addi sp, sp, 8")
-                riscv_emitter.emit("    ld a0, 0(sp)")
-                riscv_emitter.emit("    addi sp, sp, 8")
-                riscv_emitter.emit("    jal sha3_impl")
-            
-            elif opcode.startswith("LOG"):
-                topics = int(opcode[3])
-                gas_cost = GasCosts.LOG_BASE + (topics * GasCosts.LOG_TOPIC)
-                riscv_emitter.emit(f"    li a0, {gas_cost}")
-                riscv_emitter.emit("    jal check_gas")
-                riscv_emitter.emit("    li a2, {}".format(topics))
-                riscv_emitter.emit("    jal log_impl")
-            
-            elif opcode == "REVERT":
-                riscv_emitter.emit("    ld a1, 0(sp)  # size")
-                riscv_emitter.emit("    addi sp, sp, 8")
-                riscv_emitter.emit("    ld a0, 0(sp)  # offset")
-                riscv_emitter.emit("    addi sp, sp, 8")
-                riscv_emitter.emit("    j revert_impl")
-            
-            elif opcode == "RETURN":
-                riscv_emitter.emit("    ld a1, 0(sp)  # size")
-                riscv_emitter.emit("    addi sp, sp, 8")
-                riscv_emitter.emit("    ld a0, 0(sp)  # offset")
-                riscv_emitter.emit("    addi sp, sp, 8")
-                riscv_emitter.emit("    j return_impl")
-            
-            elif opcode == "CREATE" or opcode == "CREATE2":
-                riscv_emitter.emit("    li a0, {}".format(GasCosts.CREATE))
-                riscv_emitter.emit("    jal check_gas")
-                riscv_emitter.emit("    jal create_impl")
-
-        # Write the final assembly
-        with open(output_file, 'w') as f:
-            f.write(riscv_emitter.emit_code())
-            logger.info(f"RISC-V assembly written to {output_file}")
-
+        transpiler = EVMTranspiler()
+        transpiler.transpile(sys.argv[1], sys.argv[2])
     except Exception as e:
-        logger.error(f"Error during transpilation: {str(e)}")
+        logger.error(f"Transpilation failed: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        print("Usage: python main.py <input_file> <output_file>")
-        sys.exit(1)
-
-    input_file = sys.argv[1]
-    output_file = sys.argv[2]
-    transpile_evm_to_riscv(input_file, output_file)
+    main()

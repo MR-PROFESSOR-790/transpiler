@@ -52,6 +52,7 @@ class OpcodeMapping:
             "MSTORE8":   {"instr": "custom_mstore8", "args": 2},
             "SLOAD":     {"instr": "custom_sload", "args": 1},
             "SSTORE":    {"instr": "custom_sstore", "args": 2},
+            "MSIZE":     {"instr": "msize", "args": 0},
 
             # Control Flow
             "JUMP":      {"instr": "custom_jump", "args": 1},
@@ -61,6 +62,7 @@ class OpcodeMapping:
             "CALL":      {"instr": "custom_call", "args": 7},
             "STATICCALL": {"instr": "custom_staticcall", "args": 6},
             "DELEGATECALL": {"instr": "custom_delegatecall", "args": 6},
+            "CALLCODE":  {"instr": "callcode", "args": 7},
 
             # Environment operations
             "ADDRESS": {"instr": "custom_address", "args": 0},
@@ -68,6 +70,10 @@ class OpcodeMapping:
             "ORIGIN": {"instr": "custom_origin", "args": 0},
             "CALLER": {"instr": "custom_caller", "args": 0},
             "GASPRICE": {"instr": "custom_gasprice", "args": 0},
+            "SELFBALANCE": {"instr": "selfbalance", "args": 0},
+            "BASEFEE": {"instr": "basefee", "args": 0},
+            "CHAINID": {"instr": "chainid", "args": 0},
+            "GAS": {"instr": "gas", "args": 0},
 
             # Block operations
             "BLOCKHASH": {"instr": "custom_blockhash", "args": 1},
@@ -79,6 +85,7 @@ class OpcodeMapping:
 
             # Duplication and Swap
             **{f"DUP{i}": {"instr": f"custom_dup{i}", "args": 0} for i in range(1, 17)},
+            "DUP0": {"instr": "dup0", "args": 0},
             **{f"SWAP{i}": {"instr": f"custom_swap{i}", "args": 0} for i in range(1, 17)},
 
             # Push Operations
@@ -96,6 +103,8 @@ class OpcodeMapping:
             "REVERT":    {"instr": "custom_revert", "args": 2},
             "INVALID":   {"instr": "invalid", "args": 0},
             "SELFDESTRUCT": {"instr": "custom_selfdestruct", "args": 1},
+            "RETURNDATASIZE": {"instr": "returndatasize", "args": 0},
+            "RETURNDATACOPY": {"instr": "returndatacopy", "args": 3},
         }
 
     def get_riscv_mapping(self, evm_opcode, actual_args_count=None):
@@ -107,10 +116,15 @@ class OpcodeMapping:
             logger.debug(f"Opcode '{op}' matched as PUSH/DUP/SWAP.")
             return self.opcode_map.get(op) or {"instr": "custom_push", "args": 0}
 
+        # Handle unknown opcodes
+        if op.startswith("UNKNOWN_0X"):
+            hex_value = op[10:]
+            return {"instr": f"# Unknown opcode: 0x{hex_value}", "args": 0}
+
         # Handle standard opcodes
         if op not in self.opcode_map:
             logger.error(f"Unknown EVM opcode '{op}'.")
-            return {"instr": "invalid", "args": 0}  # Return invalid instead of raising exception
+            return {"instr": f"# Unsupported opcode: {op}", "args": 0}  # Return unsupported instead of raising exception
 
         mapping = self.opcode_map[op]
         

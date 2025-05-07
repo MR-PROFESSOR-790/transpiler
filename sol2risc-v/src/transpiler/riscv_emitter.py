@@ -180,3 +180,7 @@ class RISCVEmitter:
         self.emit(f"mv a0, {offset_reg}")
         self.emit(f"mv a1, {size_reg}")
         self.emit(f"call return_data")
+
+    def get_assembly(self):
+        """Returns the complete RISC-V assembly code"""
+        return "\n".join(self.instructions)
