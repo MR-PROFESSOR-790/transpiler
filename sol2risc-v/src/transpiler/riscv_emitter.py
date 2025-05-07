@@ -144,3 +144,39 @@ class RISCVEmitter:
         self.instructions = []
         self.label_counter = 0
         logger.info("Emitter state reset")
+
+    def emit_storage_load(self, dest_reg, key_reg):
+        """Emulate SLOAD operation"""
+        self.emit(f"# SLOAD implementation")
+        self.emit(f"mv a0, {key_reg}")
+        self.emit(f"call storage_load")
+        self.emit(f"mv {dest_reg}, a0")
+
+    def emit_storage_store(self, value_reg, key_reg):
+        """Emulate SSTORE operation"""
+        self.emit(f"# SSTORE implementation")
+        self.emit(f"mv a0, {key_reg}")
+        self.emit(f"mv a1, {value_reg}")
+        self.emit(f"call storage_store")
+
+    def emit_call_data_load(self, dest_reg, offset_reg):
+        """Emulate CALLDATALOAD operation"""
+        self.emit(f"# CALLDATALOAD implementation")
+        self.emit(f"mv a0, {offset_reg}")
+        self.emit(f"call read_call_data")
+        self.emit(f"mv {dest_reg}, a0")
+
+    def emit_code_copy(self, dest_reg, offset_reg, size_reg):
+        """Emulate CODECOPY operation"""
+        self.emit(f"# CODECOPY implementation")
+        self.emit(f"mv a0, {dest_reg}")
+        self.emit(f"mv a1, {offset_reg}")
+        self.emit(f"mv a2, {size_reg}")
+        self.emit(f"call code_copy")
+
+    def emit_return(self, offset_reg, size_reg):
+        """Emulate RETURN operation"""
+        self.emit(f"# RETURN implementation")
+        self.emit(f"mv a0, {offset_reg}")
+        self.emit(f"mv a1, {size_reg}")
+        self.emit(f"call return_data")
