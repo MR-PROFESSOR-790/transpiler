@@ -35,7 +35,12 @@ sstore_impl:
     # Input: a0 = key, a1 = value
     slli t0, a0, 3
     add t0, s2, t0
+    ld t1, 0(t0)            # Load old value
+    beq t1, a1, skip_store  # Skip if unchanged
+    li a0, GAS_SSTORE_NEW
+    jal check_gas
     sd a1, 0(t0)
+skip_store:
     ret
 
 mload_impl:
@@ -51,6 +56,18 @@ mstore_impl:
     sd a1, 0(t0)
     ret
 
+sha3_impl:
+    # Input: a0 = offset, a1 = size
+    jal check_memory_bounds
+    # ... SHA3 implementation ...
+    ret
+
+log_impl:
+    # Input: a0 = offset, a1 = size, a2 = topics
+    jal check_memory_bounds
+    # ... Log implementation ...
+    ret
+
 revert_impl:
     # Input: a0 = offset, a1 = size
     li a7, 93               # exit syscall
@@ -62,6 +79,29 @@ return_impl:
     li a7, 93              # exit syscall
     li a0, 0              # Success status
     ecall
+
+check_gas:
+    # Input: a0 = required gas
+    addi t0, s11, 0          # Current gas
+    sub t0, t0, a0           # Subtract required
+    bltz t0, out_of_gas      # Branch if negative
+    addi s11, t0, 0          # Update gas counter
+    ret
+
+out_of_gas:
+    li a0, 2                 # Out of gas error code
+    j revert_impl
+
+check_memory_bounds:
+    # Input: a0 = offset, a1 = size
+    add t0, a0, a1           # End address
+    li t1, 65536            # Memory limit
+    bgeu t0, t1, memory_error
+    ret
+
+memory_error:
+    li a0, 3                # Memory access error
+    j revert_impl
     
     li t0, 128
     addi sp, sp, -8
@@ -77,6 +117,8 @@ return_impl:
     li t0, 3
     addi sp, sp, -8
     sd t0, 0(sp)
+    li a0, 20000
+    jal check_gas
     ld a1, 0(sp)
     addi sp, sp, 8
     ld a0, 0(sp)
@@ -125,6 +167,8 @@ return_impl:
     li t0, 1
     addi sp, sp, -8
     sd t0, 0(sp)
+    li a0, 20000
+    jal check_gas
     ld a1, 0(sp)
     addi sp, sp, 8
     ld a0, 0(sp)
@@ -140,11 +184,21 @@ return_impl:
     jal sload_impl
     addi sp, sp, -8
     sd a0, 0(sp)
+    li a0, 20000
+    jal check_gas
     ld a1, 0(sp)
     addi sp, sp, 8
     ld a0, 0(sp)
     addi sp, sp, 8
     jal sstore_impl
+    li a0, 1875
+    jal check_gas
+    li a2, 4
+    jal log_impl
+    li a0, 1500
+    jal check_gas
+    li a2, 3
+    jal log_impl
     ld a1, 0(sp)
     addi sp, sp, 8
     ld a0, 0(sp)
@@ -404,6 +458,8 @@ return_impl:
     jal sload_impl
     addi sp, sp, -8
     sd a0, 0(sp)
+    li a0, 20000
+    jal check_gas
     ld a1, 0(sp)
     addi sp, sp, 8
     ld a0, 0(sp)
@@ -420,6 +476,13 @@ return_impl:
     li t0, 32
     addi sp, sp, -8
     sd t0, 0(sp)
+    li a0, 30
+    jal check_gas
+    ld a1, 0(sp)
+    addi sp, sp, 8
+    ld a0, 0(sp)
+    addi sp, sp, 8
+    jal sha3_impl
     li t0, 4
     addi sp, sp, -8
     sd t0, 0(sp)
@@ -450,6 +513,8 @@ return_impl:
     li t0, 2
     addi sp, sp, -8
     sd t0, 0(sp)
+    li a0, 20000
+    jal check_gas
     ld a1, 0(sp)
     addi sp, sp, 8
     ld a0, 0(sp)
@@ -471,6 +536,8 @@ return_impl:
     jal sload_impl
     addi sp, sp, -8
     sd a0, 0(sp)
+    li a0, 20000
+    jal check_gas
     ld a1, 0(sp)
     addi sp, sp, 8
     ld a0, 0(sp)
@@ -484,11 +551,128 @@ return_impl:
     jal sload_impl
     addi sp, sp, -8
     sd a0, 0(sp)
+    li a0, 20000
+    jal check_gas
     ld a1, 0(sp)
     addi sp, sp, 8
     ld a0, 0(sp)
     addi sp, sp, 8
     jal sstore_impl
+    li t0, 64
+    addi sp, sp, -8
+    sd t0, 0(sp)
+    ld a0, 0(sp)
+    addi sp, sp, 8
+    jal mload_impl
+    addi sp, sp, -8
+    sd a0, 0(sp)
+    li t0, 64
+    addi sp, sp, -8
+    sd t0, 0(sp)
+    ld a0, 0(sp)
+    addi sp, sp, 8
+    jal mload_impl
+    addi sp, sp, -8
+    sd a0, 0(sp)
+    li t0, 64
+    addi sp, sp, -8
+    sd t0, 0(sp)
+    ld a0, 0(sp)
+    addi sp, sp, 8
+    jal mload_impl
+    addi sp, sp, -8
+    sd a0, 0(sp)
+    li t0, 31
+    addi sp, sp, -8
+    sd t0, 0(sp)
+    li t0, 63
+    addi sp, sp, -8
+    sd t0, 0(sp)
+    li t0, 64
+    addi sp, sp, -8
+    sd t0, 0(sp)
+    ld a1, 0(sp)
+    addi sp, sp, 8
+    ld a0, 0(sp)
+    addi sp, sp, 8
+    jal mstore_impl
+    ld a1, 0(sp)
+    addi sp, sp, 8
+    ld a0, 0(sp)
+    addi sp, sp, 8
+    jal mstore_impl
+    li t0, 32
+    addi sp, sp, -8
+    sd t0, 0(sp)
+    li t0, 96
+    addi sp, sp, -8
+    sd t0, 0(sp)
+    li t0, 64
+    addi sp, sp, -8
+    sd t0, 0(sp)
+    ld a0, 0(sp)
+    addi sp, sp, 8
+    jal mload_impl
+    addi sp, sp, -8
+    sd a0, 0(sp)
+    ld a1, 0(sp)
+    addi sp, sp, 8
+    ld a0, 0(sp)
+    addi sp, sp, 8
+    jal mstore_impl
+    li t0, 4
+    addi sp, sp, -8
+    sd t0, 0(sp)
+    li t0, 64
+    addi sp, sp, -8
+    sd t0, 0(sp)
+    ld a0, 0(sp)
+    addi sp, sp, 8
+    jal mload_impl
+    addi sp, sp, -8
+    sd a0, 0(sp)
+    ld a1, 0(sp)  # size
+    addi sp, sp, 8
+    ld a0, 0(sp)  # offset
+    addi sp, sp, 8
+    j revert_impl
+    li a0, 750
+    jal check_gas
+    li a2, 1
+    jal log_impl
+    li a0, 1125
+    jal check_gas
+    li a2, 2
+    jal log_impl
+    li t0, 64
+    addi sp, sp, -8
+    sd t0, 0(sp)
+    ld a0, 0(sp)
+    addi sp, sp, 8
+    jal mload_impl
+    addi sp, sp, -8
+    sd a0, 0(sp)
+    ld a1, 0(sp)
+    addi sp, sp, 8
+    ld a0, 0(sp)
+    addi sp, sp, 8
+    jal mstore_impl
+    li t0, 4
+    addi sp, sp, -8
+    sd t0, 0(sp)
+    li t0, 64
+    addi sp, sp, -8
+    sd t0, 0(sp)
+    ld a0, 0(sp)
+    addi sp, sp, 8
+    jal mload_impl
+    addi sp, sp, -8
+    sd a0, 0(sp)
+    ld a1, 0(sp)  # size
+    addi sp, sp, 8
+    ld a0, 0(sp)  # offset
+    addi sp, sp, 8
+    j revert_impl
     li t0, 64
     addi sp, sp, -8
     sd t0, 0(sp)
@@ -596,116 +780,11 @@ return_impl:
     ld a0, 0(sp)  # offset
     addi sp, sp, 8
     j revert_impl
-    li t0, 64
-    addi sp, sp, -8
-    sd t0, 0(sp)
-    ld a0, 0(sp)
-    addi sp, sp, 8
-    jal mload_impl
-    addi sp, sp, -8
-    sd a0, 0(sp)
-    li t0, 64
-    addi sp, sp, -8
-    sd t0, 0(sp)
-    ld a0, 0(sp)
-    addi sp, sp, 8
-    jal mload_impl
-    addi sp, sp, -8
-    sd a0, 0(sp)
-    li t0, 64
-    addi sp, sp, -8
-    sd t0, 0(sp)
-    ld a0, 0(sp)
-    addi sp, sp, 8
-    jal mload_impl
-    addi sp, sp, -8
-    sd a0, 0(sp)
-    li t0, 31
-    addi sp, sp, -8
-    sd t0, 0(sp)
-    li t0, 63
-    addi sp, sp, -8
-    sd t0, 0(sp)
-    li t0, 64
-    addi sp, sp, -8
-    sd t0, 0(sp)
-    ld a1, 0(sp)
-    addi sp, sp, 8
-    ld a0, 0(sp)
-    addi sp, sp, 8
-    jal mstore_impl
-    ld a1, 0(sp)
-    addi sp, sp, 8
-    ld a0, 0(sp)
-    addi sp, sp, 8
-    jal mstore_impl
-    li t0, 32
-    addi sp, sp, -8
-    sd t0, 0(sp)
-    li t0, 96
-    addi sp, sp, -8
-    sd t0, 0(sp)
-    li t0, 64
-    addi sp, sp, -8
-    sd t0, 0(sp)
-    ld a0, 0(sp)
-    addi sp, sp, 8
-    jal mload_impl
-    addi sp, sp, -8
-    sd a0, 0(sp)
-    ld a1, 0(sp)
-    addi sp, sp, 8
-    ld a0, 0(sp)
-    addi sp, sp, 8
-    jal mstore_impl
-    li t0, 4
-    addi sp, sp, -8
-    sd t0, 0(sp)
-    li t0, 64
-    addi sp, sp, -8
-    sd t0, 0(sp)
-    ld a0, 0(sp)
-    addi sp, sp, 8
-    jal mload_impl
-    addi sp, sp, -8
-    sd a0, 0(sp)
-    ld a1, 0(sp)  # size
-    addi sp, sp, 8
-    ld a0, 0(sp)  # offset
-    addi sp, sp, 8
-    j revert_impl
-    li t0, 64
-    addi sp, sp, -8
-    sd t0, 0(sp)
-    ld a0, 0(sp)
-    addi sp, sp, 8
-    jal mload_impl
-    addi sp, sp, -8
-    sd a0, 0(sp)
-    ld a1, 0(sp)
-    addi sp, sp, 8
-    ld a0, 0(sp)
-    addi sp, sp, 8
-    jal mstore_impl
-    li t0, 4
-    addi sp, sp, -8
-    sd t0, 0(sp)
-    li t0, 64
-    addi sp, sp, -8
-    sd t0, 0(sp)
-    ld a0, 0(sp)
-    addi sp, sp, 8
-    jal mload_impl
-    addi sp, sp, -8
-    sd a0, 0(sp)
-    ld a1, 0(sp)  # size
-    addi sp, sp, 8
-    ld a0, 0(sp)  # offset
-    addi sp, sp, 8
-    j revert_impl
     li t0, 3
     addi sp, sp, -8
     sd t0, 0(sp)
+    li a0, 20000
+    jal check_gas
     ld a1, 0(sp)
     addi sp, sp, 8
     ld a0, 0(sp)
@@ -724,6 +803,10 @@ return_impl:
     jal mload_impl
     addi sp, sp, -8
     sd a0, 0(sp)
+    li a0, 750
+    jal check_gas
+    li a2, 1
+    jal log_impl
     li t0, 96
     addi sp, sp, -8
     sd t0, 0(sp)
@@ -773,6 +856,13 @@ return_impl:
     li t0, 32
     addi sp, sp, -8
     sd t0, 0(sp)
+    li a0, 30
+    jal check_gas
+    ld a1, 0(sp)
+    addi sp, sp, 8
+    ld a0, 0(sp)
+    addi sp, sp, 8
+    jal sha3_impl
     li t0, 4
     addi sp, sp, -8
     sd t0, 0(sp)
@@ -862,6 +952,13 @@ return_impl:
     li t0, 32
     addi sp, sp, -8
     sd t0, 0(sp)
+    li a0, 30
+    jal check_gas
+    ld a1, 0(sp)
+    addi sp, sp, 8
+    ld a0, 0(sp)
+    addi sp, sp, 8
+    jal sha3_impl
     ld a0, 0(sp)
     addi sp, sp, 8
     jal sload_impl
@@ -959,6 +1056,13 @@ return_impl:
     li t0, 32
     addi sp, sp, -8
     sd t0, 0(sp)
+    li a0, 30
+    jal check_gas
+    ld a1, 0(sp)
+    addi sp, sp, 8
+    ld a0, 0(sp)
+    addi sp, sp, 8
+    jal sha3_impl
     ld a0, 0(sp)
     addi sp, sp, 8
     jal sload_impl
@@ -1122,6 +1226,8 @@ return_impl:
     li t0, 1
     addi sp, sp, -8
     sd t0, 0(sp)
+    li a0, 20000
+    jal check_gas
     ld a1, 0(sp)
     addi sp, sp, 8
     ld a0, 0(sp)
@@ -1130,6 +1236,8 @@ return_impl:
     li t0, 1
     addi sp, sp, -8
     sd t0, 0(sp)
+    li a0, 20000
+    jal check_gas
     ld a1, 0(sp)
     addi sp, sp, 8
     ld a0, 0(sp)
@@ -1174,11 +1282,21 @@ return_impl:
     jal sload_impl
     addi sp, sp, -8
     sd a0, 0(sp)
+    li a0, 20000
+    jal check_gas
     ld a1, 0(sp)
     addi sp, sp, 8
     ld a0, 0(sp)
     addi sp, sp, 8
     jal sstore_impl
+    li a0, 1875
+    jal check_gas
+    li a2, 4
+    jal log_impl
+    li a0, 1500
+    jal check_gas
+    li a2, 3
+    jal log_impl
     li t0, 64
     addi sp, sp, -8
     sd t0, 0(sp)
@@ -1441,11 +1559,25 @@ return_impl:
     li t0, 32
     addi sp, sp, -8
     sd t0, 0(sp)
+    li a0, 30
+    jal check_gas
+    ld a1, 0(sp)
+    addi sp, sp, 8
+    ld a0, 0(sp)
+    addi sp, sp, 8
+    jal sha3_impl
     ld a1, 0(sp)
     addi sp, sp, 8
     ld a0, 0(sp)
     addi sp, sp, 8
     jal mstore_impl
+    li a0, 30
+    jal check_gas
+    ld a1, 0(sp)
+    addi sp, sp, 8
+    ld a0, 0(sp)
+    addi sp, sp, 8
+    jal sha3_impl
     li t0, 32
     addi sp, sp, -8
     sd t0, 0(sp)
@@ -1512,6 +1644,13 @@ return_impl:
     li t0, 32
     addi sp, sp, -8
     sd t0, 0(sp)
+    li a0, 30
+    jal check_gas
+    ld a1, 0(sp)
+    addi sp, sp, 8
+    ld a0, 0(sp)
+    addi sp, sp, 8
+    jal sha3_impl
     li t0, 32
     addi sp, sp, -8
     sd t0, 0(sp)
@@ -1526,6 +1665,8 @@ return_impl:
     jal sload_impl
     addi sp, sp, -8
     sd a0, 0(sp)
+    li a0, 20000
+    jal check_gas
     ld a1, 0(sp)
     addi sp, sp, 8
     ld a0, 0(sp)
@@ -1565,6 +1706,8 @@ return_impl:
     jal mload_impl
     addi sp, sp, -8
     sd a0, 0(sp)
+    li a0, 20000
+    jal check_gas
     ld a1, 0(sp)
     addi sp, sp, 8
     ld a0, 0(sp)
@@ -1578,6 +1721,8 @@ return_impl:
     jal mload_impl
     addi sp, sp, -8
     sd a0, 0(sp)
+    li a0, 20000
+    jal check_gas
     ld a1, 0(sp)
     addi sp, sp, 8
     ld a0, 0(sp)
@@ -1600,6 +1745,8 @@ return_impl:
     li t0, 31
     addi sp, sp, -8
     sd t0, 0(sp)
+    li a0, 20000
+    jal check_gas
     ld a1, 0(sp)
     addi sp, sp, 8
     ld a0, 0(sp)
@@ -1611,6 +1758,8 @@ return_impl:
     li t0, 2
     addi sp, sp, -8
     sd t0, 0(sp)
+    li a0, 20000
+    jal check_gas
     ld a1, 0(sp)
     addi sp, sp, 8
     ld a0, 0(sp)
@@ -1689,6 +1838,13 @@ return_impl:
     li t0, 64
     addi sp, sp, -8
     sd t0, 0(sp)
+    li a0, 30
+    jal check_gas
+    ld a1, 0(sp)
+    addi sp, sp, 8
+    ld a0, 0(sp)
+    addi sp, sp, 8
+    jal sha3_impl
     ld a1, 0(sp)
     addi sp, sp, 8
     ld a0, 0(sp)
@@ -1781,8 +1937,25 @@ return_impl:
     ld a0, 0(sp)
     addi sp, sp, 8
     jal mstore_impl
+    li a0, 1125
+    jal check_gas
+    li a2, 2
+    jal log_impl
+    li a0, 30
+    jal check_gas
+    ld a1, 0(sp)
+    addi sp, sp, 8
+    ld a0, 0(sp)
+    addi sp, sp, 8
+    jal sha3_impl
+    li a0, 32000
+    jal check_gas
+    jal create_impl
     ld a0, 0(sp)
     addi sp, sp, 8
     jal sload_impl
     addi sp, sp, -8
     sd a0, 0(sp)
+    li a0, 32000
+    jal check_gas
+    jal create_impl

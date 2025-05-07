@@ -10,6 +10,19 @@ from .opcode_mapping import OpcodeMapping
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+class GasCosts:
+    SLOAD = 200
+    SSTORE_NEW = 20000
+    SSTORE_UPDATE = 5000
+    MLOAD = 3
+    MSTORE = 3
+    SHA3 = 30
+    CREATE = 32000
+    CALL = 700
+    LOG_BASE = 375
+    LOG_TOPIC = 375
+    LOG_DATA = 8
+
 def parse_instruction(line):
     """Parse an EVM instruction line into (address, opcode, value)."""
     # Handle UNKNOWN opcodes and hex values
@@ -104,7 +117,12 @@ sstore_impl:
     # Input: a0 = key, a1 = value
     slli t0, a0, 3
     add t0, s2, t0
+    ld t1, 0(t0)            # Load old value
+    beq t1, a1, skip_store  # Skip if unchanged
+    li a0, GAS_SSTORE_NEW
+    jal check_gas
     sd a1, 0(t0)
+skip_store:
     ret
 
 mload_impl:
@@ -120,6 +138,18 @@ mstore_impl:
     sd a1, 0(t0)
     ret
 
+sha3_impl:
+    # Input: a0 = offset, a1 = size
+    jal check_memory_bounds
+    # ... SHA3 implementation ...
+    ret
+
+log_impl:
+    # Input: a0 = offset, a1 = size, a2 = topics
+    jal check_memory_bounds
+    # ... Log implementation ...
+    ret
+
 revert_impl:
     # Input: a0 = offset, a1 = size
     li a7, 93               # exit syscall
@@ -131,6 +161,29 @@ return_impl:
     li a7, 93              # exit syscall
     li a0, 0              # Success status
     ecall
+
+check_gas:
+    # Input: a0 = required gas
+    addi t0, s11, 0          # Current gas
+    sub t0, t0, a0           # Subtract required
+    bltz t0, out_of_gas      # Branch if negative
+    addi s11, t0, 0          # Update gas counter
+    ret
+
+out_of_gas:
+    li a0, 2                 # Out of gas error code
+    j revert_impl
+
+check_memory_bounds:
+    # Input: a0 = offset, a1 = size
+    add t0, a0, a1           # End address
+    li t1, 65536            # Memory limit
+    bgeu t0, t1, memory_error
+    ret
+
+memory_error:
+    li a0, 3                # Memory access error
+    j revert_impl
     """)
 
     try:
@@ -138,11 +191,19 @@ return_impl:
             lines = f.readlines()
 
         current_block = None
-        
+        stack_depth = 0
+        max_stack_depth = 1024
+
         for line in lines:
             addr, opcode, value = parse_instruction(line.strip())
             if not opcode:
                 continue
+
+            # Check stack overflow
+            if opcode in ["PUSH1", "PUSH2", "DUP1", "SWAP1"]:
+                stack_depth += 1
+                if stack_depth > max_stack_depth:
+                    raise Exception("Stack overflow")
 
             # Map EVM instructions to RISC-V
             if opcode == "PUSH1":
@@ -158,6 +219,8 @@ return_impl:
                 riscv_emitter.emit("    sd a0, 0(sp)")
             
             elif opcode == "SSTORE":
+                riscv_emitter.emit("    li a0, {}".format(GasCosts.SSTORE_NEW))
+                riscv_emitter.emit("    jal check_gas")
                 riscv_emitter.emit("    ld a1, 0(sp)")
                 riscv_emitter.emit("    addi sp, sp, 8")
                 riscv_emitter.emit("    ld a0, 0(sp)")
@@ -178,6 +241,23 @@ return_impl:
                 riscv_emitter.emit("    addi sp, sp, 8")
                 riscv_emitter.emit("    jal mstore_impl")
             
+            elif opcode == "SHA3":
+                riscv_emitter.emit("    li a0, {}".format(GasCosts.SHA3))
+                riscv_emitter.emit("    jal check_gas")
+                riscv_emitter.emit("    ld a1, 0(sp)")
+                riscv_emitter.emit("    addi sp, sp, 8")
+                riscv_emitter.emit("    ld a0, 0(sp)")
+                riscv_emitter.emit("    addi sp, sp, 8")
+                riscv_emitter.emit("    jal sha3_impl")
+            
+            elif opcode.startswith("LOG"):
+                topics = int(opcode[3])
+                gas_cost = GasCosts.LOG_BASE + (topics * GasCosts.LOG_TOPIC)
+                riscv_emitter.emit(f"    li a0, {gas_cost}")
+                riscv_emitter.emit("    jal check_gas")
+                riscv_emitter.emit("    li a2, {}".format(topics))
+                riscv_emitter.emit("    jal log_impl")
+            
             elif opcode == "REVERT":
                 riscv_emitter.emit("    ld a1, 0(sp)  # size")
                 riscv_emitter.emit("    addi sp, sp, 8")
@@ -191,6 +271,11 @@ return_impl:
                 riscv_emitter.emit("    ld a0, 0(sp)  # offset")
                 riscv_emitter.emit("    addi sp, sp, 8")
                 riscv_emitter.emit("    j return_impl")
+            
+            elif opcode == "CREATE" or opcode == "CREATE2":
+                riscv_emitter.emit("    li a0, {}".format(GasCosts.CREATE))
+                riscv_emitter.emit("    jal check_gas")
+                riscv_emitter.emit("    jal create_impl")
 
         # Write the final assembly
         with open(output_file, 'w') as f:
