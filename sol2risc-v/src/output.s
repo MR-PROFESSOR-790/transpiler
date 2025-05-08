@@ -41698,7 +41698,7 @@ L_1781:
                 addi sp, sp, 8
                 ld a0, 0(sp)          # first operand
                 addi sp, sp, 8
-                custom_calldataload t0, a0, a1
+                custom_calldatalowad t0, a0, a1
                 addi sp, sp, -8
                 sd t0, 0(sp)          # push result
             
