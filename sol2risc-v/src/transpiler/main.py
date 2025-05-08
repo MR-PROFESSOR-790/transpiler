@@ -4,7 +4,7 @@ import re
 from .memory_model import MemoryModel
 from .riscv_emitter import RISCVEmitter
 from .register_allocator import RegisterAllocator
-from .stack_manager import StackManager
+from .stack_emulator import StackEmulator
 from .opcode_mapping import OpcodeMapping
 from .evm_parser import EVMAssemblyParser
 
@@ -15,7 +15,7 @@ class EVMTranspiler:
     def __init__(self):
         self.memory_model = MemoryModel()
         self.register_allocator = RegisterAllocator()
-        self.stack_manager = StackManager(self.register_allocator)
+        self.stack_manager = StackEmulator(self.register_allocator)
         self.opcode_mapping = OpcodeMapping()
         self.riscv_emitter = RISCVEmitter(self.register_allocator, self.memory_model)
         self.evm_parser = EVMAssemblyParser()
