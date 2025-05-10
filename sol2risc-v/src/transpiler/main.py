@@ -78,12 +78,12 @@ def main():
         logger.info("Analyzing stack usage")
         try:
             stack_analysis = evm_parser.analyze_stack_usage()
-            logger.debug(f"Max stack depth: {stack_analysis['max_stack']}")
-            if not stack_analysis['balanced']:
+            logger.debug(f"Max stack depth: {stack_analysis['max_stack_depth']}")
+            if not stack_analysis['is_balanced']:
                 logger.warning("Stack is not balanced at the end of execution")
         except Exception as e:
             logger.warning(f"Stack analysis failed: {e}, continuing without stack information")
-            stack_analysis = {'max_stack': 0, 'balanced': False}
+            stack_analysis = {'max_stack_depth': 0, 'is_balanced': False}
 
         # Step 3: Optimize IR
         logger.info("Optimizing intermediate representation")
@@ -110,33 +110,40 @@ def main():
         # Step 5: Setup runtime environment
         logger.info("Setting up runtime environment")
         emitter = RISCVEmitter(input_path.as_posix(), output_path.as_posix())
-        env = EVMEnvironment(emitter)
-        mem = EVMMemoryModel(emitter)
-        arith = ArithmeticHandler(emitter)
-        # Pass only the required arguments to OpcodeMapper
-        mapper = OpcodeMapper(emitter, mem, arith)
+        emitter.emit_header()
 
         # Step 6: Map opcodes to RISC-V instructions
         logger.info("Mapping EVM opcodes to RISC-V instructions")
-        emitter.emit_header()
-
         for instr in optimized_with_patterns:
             try:
-                mapper.map_opcode(instr.opcode, instr.args)
-            except ValueError as ve:
-                logger.warning(f"Ignoring unknown opcode '{instr.opcode}' at PC={instr.pc}: {ve}")
+                if args.optimization_level > 0:  # Assuming gas metering is tied to optimization level
+                    emitter.emit(f"    # Gas cost: {instr.gas}")
+                    emitter.emit(f"    li a0, {instr.gas}")
+                    emitter.emit(f"    call check_gas")
 
-        emitter.emit_footer()
+                if isinstance(instr, dict):
+                    emitter.emit_instruction(instr['opcode'], *instr.get('args', []))
+                else:
+                    emitter.emit_instruction(instr.opcode, *instr.args)
+                    
+            except Exception as e:
+                logger.warning(f"Error processing instruction {instr}: {e}")
 
-        # Step 7: Generate final RISC-V assembly
-        logger.info("Generating final RISC-V assembly")
+        # Set instructions before transpiling
+        emitter.set_instructions(optimized_with_patterns)
+
+        # Transpile
         emitter.transpile()
 
+        # Get and log stack analysis
         stats = emitter.analyze_stack_usage()
         logger.info("Stack analysis:")
         logger.info(f"  Max stack depth: {stats['max_stack_depth']}")
-        logger.info(f"  Register slots used: {stats['register_stack_slots']}")
-        logger.info(f"  Memory stack slots used: {stats['memory_stack_slots']}")
+        logger.info(f"  Final stack depth: {stats['current_depth']}")
+        logger.info(f"  Stack balanced: {stats['is_balanced']}")
+
+        emitter.write_output()
+
         logger.info("Transpilation completed successfully!")
 
     except FileNotFoundError as e:

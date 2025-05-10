@@ -1,14 +1,50 @@
+from collections import deque
+
+class Stack:
+    """Stack management for register allocation."""
+    def __init__(self):
+        self.stack = deque()
+        self.next_reg = 0
+        self.max_depth = 0
+
+    def push(self) -> str:
+        """Push a new register onto the stack."""
+        reg = f"t{self.next_reg}"
+        self.next_reg = (self.next_reg + 1) % 6  # t0-t5
+        self.stack.append(reg)
+        self.max_depth = max(self.max_depth, len(self.stack))
+        return reg
+
+    def pop(self) -> str:
+        """Pop a register from the stack."""
+        if not self.stack:
+            raise ValueError("Stack underflow")
+        return self.stack.pop()
+
+    def peek(self) -> str:
+        """Look at the top register without popping."""
+        if not self.stack:
+            raise ValueError("Stack underflow")
+        return self.stack[-1]
+
+    def get_nth_from_top(self, n: int) -> str:
+        """Get nth register from top of stack."""
+        if n >= len(self.stack):
+            raise ValueError("Stack underflow")
+        return self.stack[-(n+1)]
+
 class OpcodeMapper:
     def __init__(self, emitter, memory_handler, arithmetic_handler):
         self.emitter = emitter
         self.memory = memory_handler
         self.arithmetic = arithmetic_handler
-        self.stack_emulator = None
-        self.memory_model = None
-        self.riscv_emitter = None
+        self.stack = Stack()  # Add stack management
+        self.memory_model = memory_handler
+        self.riscv_emitter = emitter
         self.jump_destinations = set()
+        self.temp_reg_counter = 0
 
-     # Register opcode handlers
+        # Register opcode handlers
         self.handlers = {
             # Stack operations
             'PUSH': self._handle_push,
@@ -119,6 +155,12 @@ class OpcodeMapper:
             else:
                 raise ValueError(f"Opcode {opcode} not recognized")
             
+    def get_temp_reg(self) -> str:
+        """Get next temporary register."""
+        reg = f"t{self.temp_reg_counter}"
+        self.temp_reg_counter = (self.temp_reg_counter + 1) % 6  # t0-t5
+        return reg
+
     def _handle_push(self, value):
         # Allocate register for the value
         reg = self.stack.push()
