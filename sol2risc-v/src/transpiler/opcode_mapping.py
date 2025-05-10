@@ -1,8 +1,11 @@
 class OpcodeMapper:
-    def __init__(self, stack_emulator, memory_model, riscv_emitter):
-        self.stack_emulator = stack_emulator
-        self.memory_model = memory_model
-        self.riscv_emitter = riscv_emitter
+    def __init__(self, emitter, memory_handler, arithmetic_handler):
+        self.emitter = emitter
+        self.memory = memory_handler
+        self.arithmetic = arithmetic_handler
+        self.stack_emulator = None
+        self.memory_model = None
+        self.riscv_emitter = None
         self.jump_destinations = set()
 
      # Register opcode handlers

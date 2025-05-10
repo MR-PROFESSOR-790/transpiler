@@ -113,7 +113,8 @@ def main():
         env = EVMEnvironment(emitter)
         mem = EVMMemoryModel(emitter)
         arith = ArithmeticHandler(emitter)
-        mapper = OpcodeMapper(emitter, mem, arith, env)
+        # Pass only the required arguments to OpcodeMapper
+        mapper = OpcodeMapper(emitter, mem, arith)
 
         # Step 6: Map opcodes to RISC-V instructions
         logger.info("Mapping EVM opcodes to RISC-V instructions")
