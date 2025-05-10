@@ -621,6 +621,41 @@ class EVMParser:
             'max_stack': max_stack
         }
     
+    def analyze_stack_usage(self) -> dict:
+        """
+        Analyze stack usage of the parsed instructions.
+        
+        Returns:
+            dict: Analysis results containing max stack depth and other metrics
+        """
+        max_stack = 0
+        current_stack = 0
+        
+        for instr in self.instructions:
+            # Get stack impact for each instruction
+            if hasattr(instr, 'stack_in') and hasattr(instr, 'stack_out'):
+                current_stack -= getattr(instr, 'stack_in', 0)
+                current_stack += getattr(instr, 'stack_out', 0)
+            else:
+                # Default stack impact for unknown instructions
+                opcode = getattr(instr, 'opcode', '')
+                if opcode in ['PUSH1', 'PUSH2', 'PUSH32']:
+                    current_stack += 1
+                elif opcode in ['POP']:
+                    current_stack -= 1
+                elif opcode in ['SWAP1', 'SWAP2', 'SWAP3']:
+                    pass  # No net stack change
+                elif opcode in ['DUP1', 'DUP2', 'DUP3']:
+                    current_stack += 1
+            
+            max_stack = max(max_stack, current_stack)
+        
+        return {
+            'max_stack': max_stack,
+            'final_stack': current_stack,
+            'balanced': current_stack == 0
+        }
+    
     def save_ir(self, filename):
         """Save the intermediate representation to a JSON file."""
         ir_data = self.to_ir()

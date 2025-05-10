@@ -9,16 +9,6 @@ from dataclasses import dataclass
 from typing import List, Dict, Tuple, Optional, Callable, Set
 
 @dataclass
-class EVMPattern:
-    """Class to store recognized EVM patterns and their RISC-V equivalents"""
-    name: str
-    opcodes: List[str]
-    # Function to generate RISC-V assembly for this pattern
-    riscv_generator: Callable[[List[str], Dict], List[str]]
-    # Optional prerequisites (e.g., certain stack configuration)
-    prerequisites: Optional[Dict] = None
-
-@dataclass
 class StackOperation:
     """Represents an operation's stack effect"""
     pops: int  # Number of values popped from stack
@@ -206,6 +196,117 @@ class RegisterAllocator:
     def get_special(self, name):
         """Get a special register by name"""
         return self.SPECIAL_REGISTERS.get(name)
+
+class EVMPattern:
+    def __init__(self, name: str, opcodes: list, riscv_generator=None):
+        self.name = name
+        self.opcodes = opcodes
+        self.riscv_generator = riscv_generator or (lambda x: x)
+        self.patterns = []
+
+    def scan_instructions(self, instructions):
+        """Scan instructions for optimization patterns."""
+        patterns = []
+        i = 0
+        while i < len(instructions):
+            pattern = self._match_pattern(instructions[i:])
+            if pattern:
+                patterns.append(pattern)
+                i += len(pattern['instructions'])
+            else:
+                i += 1
+        return patterns
+
+    def _match_pattern(self, instructions):
+        """Match a sequence of instructions against known patterns."""
+        if not instructions:
+            return None
+
+        # Example patterns (add more as needed)
+        patterns = [
+            self._match_push_pop(instructions),
+            self._match_arithmetic_sequence(instructions),
+            self._match_memory_access(instructions)
+        ]
+
+        return next((p for p in patterns if p), None)
+
+    def _match_push_pop(self, instructions):
+        """Match PUSH followed immediately by POP pattern."""
+        if len(instructions) >= 2:
+            if (instructions[0].opcode.startswith('PUSH') and
+                instructions[1].opcode == 'POP'):
+                return {
+                    'type': 'push_pop',
+                    'instructions': instructions[:2],
+                    'optimization': 'remove'
+                }
+        return None
+
+    def _match_arithmetic_sequence(self, instructions):
+        """Match arithmetic operation patterns."""
+        if len(instructions) >= 3:
+            if (all(i.opcode.startswith('PUSH') for i in instructions[:2]) and
+                instructions[2].opcode in ('ADD', 'MUL', 'SUB')):
+                return {
+                    'type': 'constant_arithmetic',
+                    'instructions': instructions[:3],
+                    'optimization': 'fold'
+                }
+        return None
+
+    def _match_memory_access(self, instructions):
+        """Match memory access patterns."""
+        if len(instructions) >= 2:
+            if (instructions[0].opcode == 'MSTORE' and
+                instructions[1].opcode == 'MLOAD' and
+                instructions[0].args == instructions[1].args):
+                return {
+                    'type': 'redundant_memory',
+                    'instructions': instructions[:2],
+                    'optimization': 'combine'
+                }
+        return None
+
+    def apply_optimizations(self, instructions, patterns):
+        """Apply found patterns to optimize instructions."""
+        if not patterns:
+            return instructions
+
+        optimized = []
+        skip_until = 0
+
+        for i, instr in enumerate(instructions):
+            if i < skip_until:
+                continue
+
+            # Check if this instruction starts a pattern
+            pattern = next((p for p in patterns if p['instructions'][0] == instr), None)
+            
+            if pattern:
+                # Apply pattern-specific optimization
+                if pattern['optimization'] == 'remove':
+                    skip_until = i + len(pattern['instructions'])
+                elif pattern['optimization'] == 'fold':
+                    optimized.append(self._fold_arithmetic(pattern['instructions']))
+                    skip_until = i + len(pattern['instructions'])
+                elif pattern['optimization'] == 'combine':
+                    optimized.append(self._combine_memory_ops(pattern['instructions']))
+                    skip_until = i + len(pattern['instructions'])
+            else:
+                optimized.append(instr)
+
+        return optimized
+
+    def _fold_arithmetic(self, instructions):
+        """Fold constant arithmetic operations."""
+        # Implementation details here
+        return instructions[0]  # Placeholder
+
+    def _combine_memory_ops(self, instructions):
+        """Combine redundant memory operations."""
+        # Implementation details here
+        return instructions[0]  # Placeholder
 
 # Pattern recognition and translation
 def recognize_patterns(instructions):
