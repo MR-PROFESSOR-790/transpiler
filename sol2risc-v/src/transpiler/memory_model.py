@@ -1,6 +1,6 @@
 # memory_model.py - Simulates EVM memory and maps it to RISC-V memory
 
-from .context_manager import Context
+from .types import Context
 from .gas_costs import calculate_memory_expansion_cost
 import logging
 

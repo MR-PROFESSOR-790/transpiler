@@ -1,389 +1,247 @@
+# evm_parser.py - Parser for EVM assembly into intermediate representation
+
 import re
-from dataclasses import dataclass
-from typing import List, Dict, Optional, Tuple, Set
+from .context_manager import create_transpilation_context, update_context_for_instruction
+from .stack_emulator import calculate_stack_effect
+from .pattern import detect_patterns
+import logging
+from logging import log_instruction_processing, log_error
+import json
 
-# ======================
-# Data Structures
-# ======================
 
-@dataclass
-class EVMInstruction:
-    address: Optional[str] = None   # Hex address e.g. '0000'
-    opcode: str = ""
-    args: List[str] = None
-    line_number: int = -1
-    label: Optional[str] = None     # Optional symbolic label
-    is_jump_target: bool = False
-
-    def __post_init__(self):
-        if self.args is None:
-            self.args = []
-
-@dataclass
-class RISCVInstruction:
-    opcode: str
-    rd: Optional[str] = None      # Destination register
-    rs1: Optional[str] = None     # Source register 1
-    rs2: Optional[str] = None     # Source register 2
-    imm: Optional[int] = None     # Immediate value
-    label: Optional[str] = None   # Label for jumps
-
-# ======================
-# Parser Core Functions
-# ======================
-
-def parse_evm_assembly(input_file: str) -> List[EVMInstruction]:
+def parse_evm_assembly(input_file: str):
     """
-    Main parsing function to read EVM assembly file and return list of EVMInstruction objects.
-    Handles:
-      - Address-prefixed lines (like '0000: PUSH1 80')
-      - Symbolic labels
-      - UNKNOWN_XXX opcodes
-      - Inline comments
+    Main entry point to parse EVM assembly file into structured IR.
+    
+    Args:
+        input_file (str): Path to .asm file containing EVM assembly
+    Returns:
+        list[dict]: Parsed instruction list in IR format
     """
+    logging.log(f"Parsing EVM assembly from {input_file}")
+    lines = _read_input_lines(input_file)
     instructions = []
-    line_number = 0
-    current_label = None
 
-    with open(input_file, 'r') as f:
-        for line in f:
-            line = line.strip()
-            line_number += 1
+    context = create_transpilation_context()
+    labels = {}
+    label_counter = 0
 
-            if not line or line.startswith(';'):
-                continue
+    for line_num, line in enumerate(lines):
+        line = line.strip()
+        if not line or line.startswith(";"):
+            continue
 
-            # Match optional address prefix and instruction
-            match = re.match(r'^(?:([0-9a-fA-F]{4}):)?\s*(.+)$', line)
-            if not match:
-                continue
+        # Handle labels
+        if line.endswith(":"):
+            label_name = line[:-1].strip()
+            labels[label_name] = len(instructions)
+            instructions.append({
+                "type": "label",
+                "name": label_name,
+                "index": len(instructions),
+                "line": line_num
+            })
+            continue
 
-            address, instr_part = match.groups()
+        # Tokenize line into components
+        instr = tokenize_instruction(line)
+        if not instr:
+            log_error(f"Failed to parse line: {line}", {"line": line}, context)
+            continue
 
-            # Check for label (before parsing instruction)
-            label_match = re.match(r'^([a-zA-Z_][a-zA-Z0-9_]*)\s*:$|^\s*(tag_[0-9]+)\s*:$', instr_part)
-            if label_match:
-                label_name = label_match.group(1) or label_match.group(2)
-                current_label = label_name
-                continue
+        # Add metadata
+        instr["line"] = line_num
+        instr["index"] = len(instructions)
 
-            # Tokenize instruction part
-            tokens = re.split(r'\s+', instr_part)
-            if not tokens:
-                continue
+        # Validate instruction
+        if not validate_instruction(instr):
+            log_error(f"Invalid instruction: {instr}", instr, context)
+            continue
 
-            opcode = tokens[0]
-            args = tokens[1:]
+        # Track jump destinations
+        if instr["opcode"] == "JUMPDEST":
+            instr["jumpdest"] = True
 
-            # Build instruction object
-            instr_obj = EVMInstruction(
-                address=address,
-                opcode=opcode,
-                args=args,
-                line_number=line_number,
-                label=current_label
-            )
-            current_label = None  # Clear after assigning
+        # Process using shared context
+        update_context_for_instruction(instr, context)
 
-            # Validate instruction
-            try:
-                validate_instruction(instr_obj)
-            except ValueError as e:
-                print(f"Line {line_number}: Warning: {str(e)}")
+        # Append to instruction stream
+        instructions.append(instr)
 
-            instructions.append(instr_obj)
+    # Build CFG
+    cfg = build_control_flow_graph(instructions)
 
-    # Post-processing
-    resolve_jumps(instructions)
-    detect_function_boundaries(instructions)
+    # Resolve jumps
+    resolve_jumps(instructions, labels)
+
+    # Detect function boundaries
+    function_boundaries = detect_function_boundaries(instructions)
+
+    # Analyze stack effects
     analyze_stack_effects(instructions)
-    build_control_flow_graph(instructions)
 
-    return instructions
+    logging.log(f"Parsed {len(instructions)} instructions")
+    return {
+        "instructions": instructions,
+        "cfg": cfg,
+        "functions": function_boundaries,
+        "labels": labels,
+        "context": context
+    }
+
+
+def _read_input_lines(input_file: str):
+    """Read input file line by line."""
+    try:
+        with open(input_file, 'r') as f:
+            return f.readlines()
+    except Exception as e:
+        log_error(f"Failed to read input file: {e}", {})
+        return []
 
 
 def tokenize_instruction(line: str) -> dict:
     """
-    Break assembly line into components: opcode, args, comments, etc.
-    Not used directly anymore, but kept for reference.
+    Convert a single EVM assembly line into an instruction dictionary.
+    
+    Args:
+        line (str): Line of EVM assembly
+    Returns:
+        dict: Parsed instruction with opcode and args
     """
-    line = line.split('//')[0].strip()
-    tokens = re.split(r'\s+', line)
-    if not tokens:
+    parts = re.split(r'\s+', line.strip(), maxsplit=1)
+    if not parts:
         return None
+
+    opcode = parts[0].upper()
+
+    args = []
+    if len(parts) > 1:
+        args = [arg.strip() for arg in parts[1].split(",")]
+
     return {
-        'opcode': tokens[0],
-        'args': tokens[1:]
+        "opcode": opcode,
+        "args": args,
+        "value": args[0] if len(args) == 1 else None
     }
 
 
-def validate_instruction(instr: EVMInstruction) -> None:
+def validate_instruction(instruction: dict) -> bool:
     """
-    Validate that the instruction matches expected format and operand count.
-    Now handles PUSH operations correctly with special case for PUSH0.
+    Check if instruction conforms to expected format.
+    
+    Args:
+        instruction (dict): Instruction dictionary
+    Returns:
+        bool: True if valid
     """
-    # Special handling for PUSH operations
-    if instr.opcode == 'PUSH0':
-        # PUSH0 doesn't require an argument as it pushes 0 onto the stack
-        return
-    elif instr.opcode.startswith('PUSH'):
-        if len(instr.args) != 1:
-            raise ValueError(f"Expected 1 argument for {instr.opcode}, got {len(instr.args)}")
-        return
+    opcode = instruction.get("opcode", "")
+    args = instruction.get("args", [])
 
-    evm_opcode_metadata = {
-        # Standard Opcodes
-        'STOP': 0, 'ADD': 0, 'MUL': 0, 'SUB': 0, 'DIV': 0,
-        'SDIV': 0, 'MOD': 0, 'SMOD': 0, 'ADDMOD': 0, 'MULMOD': 0,
-        'EXP': 0, 'SIGNEXTEND': 0, 'LT': 0, 'GT': 0, 'SLT': 0,
-        'SGT': 0, 'EQ': 0, 'ISZERO': 0, 'AND': 0, 'OR': 0,
-        'XOR': 0, 'NOT': 0, 'BYTE': 0, 'SHL': 0, 'SHR': 0, 'SAR': 0,
-        'SHA3': 0, 'ADDRESS': 0, 'BALANCE': 0, 'ORIGIN': 0, 'CALLER': 0,
-        'CALLVALUE': 0, 'CALLDATALOAD': 0, 'CALLDATASIZE': 0, 'CALLDATACOPY': 0,
-        'CODESIZE': 0, 'CODECOPY': 0, 'GASPRICE': 0, 'EXTCODESIZE': 0,
-        'EXTCODECOPY': 0, 'RETURNDATASIZE': 0, 'RETURNDATACOPY': 0,
-        'BLOCKHASH': 0, 'COINBASE': 0, 'TIMESTAMP': 0, 'NUMBER': 0,
-        'DIFFICULTY': 0, 'GASLIMIT': 0, 'CHAINID': 0, 'SELFBALANCE': 0,
-        'POP': 0, 'MLOAD': 0, 'MSTORE': 0, 'MSTORE8': 0, 'SLOAD': 0,
-        'SSTORE': 0, 'JUMP': 0, 'JUMPI': 0, 'PC': 0, 'MSIZE': 0,
-        'GAS': 0, 'JUMPDEST': 0,
+    if not opcode:
+        return False
 
-        # Pushes: All take 0 arguments
-        **{f"PUSH{i}": 0 for i in range(1, 33)},
+    # Basic validation rules
+    if opcode.startswith("PUSH") and len(args) != 1:
+        return False
+    elif opcode.startswith("DUP") and len(args) != 0:
+        return False
+    elif opcode.startswith("SWAP") and len(args) != 0:
+        return False
+    elif opcode in ["JUMP", "JUMPI"] and len(args) != 0:
+        return False
 
-        # New PUSH0 from EIP-3855
-        'PUSH0': 0,
-
-        # Dup and Swap
-        **{f"DUP{i}": 0 for i in range(1, 17)},
-        **{f"SWAP{i}": 0 for i in range(1, 17)},
-
-        # Logs
-        **{f"LOG{i}": 0 for i in range(0, 5)},
-
-        # System
-        'CREATE': 0, 'CALL': 0, 'CALLCODE': 0,
-        'RETURN': 0, 'DELEGATECALL': 0, 'CREATE2': 0, 'STATICCALL': 0,
-        'REVERT': 0, 'INVALID': 0, 'SELFDESTRUCT': 0,
-
-        # Unknown opcodes
-        **{f"UNKNOWN_0x{i:02x}": 0 for i in range(0x00, 0xff)}
-    }
-
-    expected_args = evm_opcode_metadata.get(instr.opcode, -1)
-
-    if expected_args == -1:
-        raise ValueError(f"Unknown opcode: {instr.opcode}")
-    if len(instr.args) != expected_args:
-        raise ValueError(f"Expected {expected_args} arguments for {instr.opcode}, got {len(instr.args)}")
+    return True
 
 
-# ======================
-# Analysis Functions
-# ======================
+def build_control_flow_graph(instructions: list) -> dict:
+    """
+    Build control flow graph from instruction stream.
+    
+    Args:
+        instructions (list): List of parsed instructions
+    Returns:
+        dict: Control flow graph
+    """
+    logging.log("Building control flow graph...")
+    cfg = {}
 
-def build_control_flow_graph(instructions: List[EVMInstruction]):
-    """Placeholder for CFG construction."""
-    pass
-
-
-def resolve_jumps(instructions: List[EVMInstruction]):
-    """Resolve jump targets by mapping labels to indices."""
-    label_map = {}
-    for idx, instr in enumerate(instructions):
-        if instr.label:
-            label_map[instr.label] = idx
-        if instr.opcode == "JUMPDEST":
-            if instr.label:
-                label_map[instr.label] = idx
-
-    for instr in instructions:
-        if instr.opcode in ("JUMP", "JUMPI") and instr.args:
-            target = instr.args[0]
-            if target in label_map:
-                instr.args[0] = str(label_map[target])
-            elif re.match(r'tag_\d+', target) or re.match(r'[0-9a-fA-F]+', target):
-                # Allow unresolved tag or hex address
-                pass
-            else:
-                print(f"Warning: Unresolved jump target '{target}' at line {instr.line_number}")
-
-
-def detect_function_boundaries(instructions: List[EVMInstruction]):
-    """Detect function boundaries based on common patterns."""
-    pass
-
-
-def analyze_stack_effects(instructions: List[EVMInstruction]):
-    """Analyze stack usage per instruction."""
-    stack_effect_table = {
-        'STOP': 0, 'ADD': -1, 'MUL': -1, 'SUB': -1, 'DIV': -1,
-        'SDIV': -1, 'MOD': -1, 'SMOD': -1, 'ADDMOD': -2, 'MULMOD': -2,
-        'EXP': -1, 'SIGNEXTEND': -1, 'LT': -1, 'GT': -1, 'SLT': -1,
-        'SGT': -1, 'EQ': -1, 'ISZERO': 0, 'AND': -1, 'OR': -1,
-        'XOR': -1, 'NOT': 0, 'BYTE': -1, 'SHL': -1, 'SHR': -1, 'SAR': -1,
-        'SHA3': -1, 'ADDRESS': +1, 'BALANCE': +1, 'ORIGIN': +1, 'CALLER': +1,
-        'CALLVALUE': +1, 'CALLDATALOAD': +1, 'CALLDATASIZE': +1, 'CALLDATACOPY': -3,
-        'CODESIZE': +1, 'CODECOPY': -2, 'GASPRICE': +1, 'EXTCODESIZE': +1,
-        'EXTCODECOPY': -3, 'RETURNDATASIZE': +1, 'RETURNDATACOPY': -3,
-        'BLOCKHASH': +1, 'COINBASE': +1, 'TIMESTAMP': +1, 'NUMBER': +1,
-        'DIFFICULTY': +1, 'GASLIMIT': +1, 'CHAINID': +1, 'SELFBALANCE': +1,
-        'POP': -1, 'MLOAD': -1, 'MSTORE': -2, 'MSTORE8': -2, 'SLOAD': -1,
-        'SSTORE': -2, 'JUMP': 0, 'JUMPI': -1, 'PC': +1, 'MSIZE': +1,
-        'GAS': +1, 'JUMPDEST': 0,
-
-        **{f"PUSH{i}": +1 for i in range(1, 33)},
-        'PUSH0': +1,
-
-        **{f"DUP{i}": +1 for i in range(1, 17)},
-        **{f"SWAP{i}": 0 for i in range(1, 17)},
-
-        'LOG0': -2, 'LOG1': -3, 'LOG2': -4, 'LOG3': -5, 'LOG4': -6,
-        'CREATE': -3, 'CALL': -7, 'CALLCODE': -7, 'RETURN': -2,
-        'DELEGATECALL': -6, 'CREATE2': -4, 'STATICCALL': -6, 'REVERT': -2,
-        'INVALID': 0, 'SELFDESTRUCT': -1,
-
-        **{f"UNKNOWN_0x{i:02x}": 0 for i in range(0x00, 0xff)},
-    }
-    stack_depth = 0
-    for instr in instructions:
-        effect = stack_effect_table.get(instr.opcode, 0)
-        stack_depth += effect
-        if stack_depth < 0:
-            print(f"[WARNING] Stack underflow detected at {instr.opcode} (depth: {stack_depth})")
-
-
-def convert_stack_to_register_ops(evm_instructions: List[EVMInstruction]) -> List[RISCVInstruction]:
-    """Convert EVM stack operations to RISC-V register operations."""
-    riscv_instructions = []
-    current_stack = []
-    reg_counter = 0
-    sp_offset = 0  # Stack pointer offset for spilling
-
-    def get_next_reg():
-        nonlocal reg_counter
-        # Use only t0-t6 (x5-x7, x28-x31) and a0-a7 (x10-x17) for general purpose
-        if reg_counter < 8:
-            reg = f"a{reg_counter}"  # Use a0-a7 first
-        elif reg_counter < 15:
-            reg = f"t{reg_counter-8}"  # Then use t0-t6
+    for i, instr in enumerate(instructions):
+        opcode = instr.get("opcode", "")
+        if opcode in ["JUMP", "JUMPI"]:
+            cfg[i] = []
+        elif opcode == "JUMPDEST":
+            pass  # Start of new block
         else:
-            # If we run out of registers, spill to stack
-            reg = spill_to_stack()
-        reg_counter = (reg_counter + 1) % 15
-        return reg
+            cfg[i] = [i + 1] if i + 1 < len(instructions) else []
 
-    def spill_to_stack():
-        nonlocal sp_offset
-        # Save oldest register to stack
-        oldest_reg = current_stack[0]
-        sp_offset -= 4
-        riscv_instructions.append(RISCVInstruction(
-            opcode='sw',
-            rs2=oldest_reg,
-            rs1='sp',
-            imm=sp_offset
-        ))
-        return oldest_reg
+    # Connect JUMP destinations
+    for i, instr in enumerate(instructions):
+        opcode = instr.get("opcode", "")
+        if opcode == "JUMP":
+            target = instr.get("target_index")
+            if target is not None:
+                cfg[i].append(target)
+        elif opcode == "JUMPI":
+            target = instr.get("target_index")
+            if target is not None:
+                cfg[i].append(target)
 
-    # Initialize stack pointer
-    riscv_instructions.append(RISCVInstruction(
-        opcode='addi',
-        rd='sp',
-        rs1='sp',
-        imm=-64  # Reserve stack space
-    ))
+    return cfg
 
-    for instr in evm_instructions:
-        if instr.opcode.startswith('PUSH'):
-            # Convert PUSH to LI (Load Immediate)
-            reg = get_next_reg()
-            value = 0 if instr.opcode == 'PUSH0' else int(instr.args[0], 16)
-            riscv_instructions.append(RISCVInstruction(
-                opcode='li',
-                rd=reg,
-                imm=value
-            ))
-            current_stack.append(reg)
-            
-        elif instr.opcode in ['ADD', 'SUB', 'MUL', 'DIV']:
-            if len(current_stack) >= 2:
-                rs2 = current_stack.pop()
-                rs1 = current_stack.pop()
-                rd = get_next_reg()
-                riscv_instructions.append(RISCVInstruction(
-                    opcode=instr.opcode.lower(),
-                    rd=rd,
-                    rs1=rs1,
-                    rs2=rs2
-               ))
-                current_stack.append(rd)
 
-        elif instr.opcode == 'MSTORE':
-            if len(current_stack) >= 2:
-                value_reg = current_stack.pop()
-                addr_reg = current_stack.pop()
-                riscv_instructions.append(RISCVInstruction(
-                    opcode='sw',
-                    rs2=value_reg,
-                    rs1=addr_reg,
-                    imm=0
-                ))
-
-        elif instr.opcode == 'JUMPI':
-            if len(current_stack) >= 2:
-                cond_reg = current_stack.pop()
-                target_reg = current_stack.pop()
-                label = f"L_{target_reg}"
-                riscv_instructions.append(RISCVInstruction(
-                    opcode='bnez',
-                    rs1=cond_reg,
-                    label=label
-                ))
-
-        elif instr.opcode == 'JUMPDEST':
-            riscv_instructions.append(RISCVInstruction(
-                opcode='label',
-                label=f"L_{instr.address}"
-            ))
-
-    # Restore stack pointer
-    riscv_instructions.append(RISCVInstruction(
-        opcode='addi',
-        rd='sp',
-        rs1='sp',
-        imm=64
-    ))
-
-    return riscv_instructions
-
-# ======================
-# CLI Entry Point
-# ======================
-
-if __name__ == "__main__":
-    import sys
-
-    if len(sys.argv) != 2:
-        print("Usage: python evm_parser.py <input.evm>")
-        sys.exit(1)
-
-    input_file = sys.argv[1]
-    try:
-        instructions = parse_evm_assembly(input_file)
-        riscv_instructions = convert_stack_to_register_ops(instructions)
-        
-        print("\nParsed Instructions:")
-        for i, instr in enumerate(instructions):
-            label = instr.label if instr.label else ''
-            addr = instr.address if instr.address else ''
-            print(f"{i:3d} [{addr}] [{label}] {instr.opcode} {' '.join(instr.args)}")
-        
-        print("\nRISC-V Instructions:")
-        for i, instr in enumerate(riscv_instructions):
-            if instr.imm is not None:
-                print(f"{i:3d} {instr.opcode} {instr.rd or ''}, {instr.imm}")
+def resolve_jumps(instructions: list, labels: dict):
+    """
+    Resolve symbolic jump destinations.
+    
+    Args:
+        instructions (list): List of parsed instructions
+        labels (dict): Map of label names to instruction indices
+    """
+    logging.log("Resolving jump destinations...")
+    for instr in instructions:
+        if instr.get("opcode") in ["JUMP", "JUMPI"]:
+            target_label = instr.get("value", "").strip()
+            if target_label in labels:
+                instr["target_index"] = labels[target_label]
             else:
-                print(f"{i:3d} {instr.opcode} {instr.rd or ''}, {instr.rs1 or ''}, {instr.rs2 or ''}")
-    except Exception as e:
-        print(f"[ERROR] {e}")
+                instr["target_index"] = -1  # Unresolved
+
+
+def detect_function_boundaries(instructions: list):
+    """
+    Identify likely function boundaries based on JUMPDEST usage.
+    
+    Args:
+        instructions (list): List of parsed instructions
+    Returns:
+        list: List of function boundary tuples (start, end)
+    """
+    logging.log("Detecting function boundaries...")
+    boundaries = []
+    start_idx = None
+
+    for i, instr in enumerate(instructions):
+        if instr.get("opcode") == "JUMPDEST":
+            if start_idx is not None:
+                boundaries.append((start_idx, i))
+            start_idx = i
+
+    if start_idx is not None:
+        boundaries.append((start_idx, len(instructions)))
+
+    return boundaries
+
+
+def analyze_stack_effects(instructions: list):
+    """
+    Analyze and annotate each instruction with its stack effect.
+    
+    Args:
+        instructions (list): List of parsed instructions
+    """
+    logging.log("Analyzing stack effects...")
+    for instr in instructions:
+        opcode = instr.get("opcode", "")
+        delta = calculate_stack_effect(opcode)
+        instr["stack_effect"] = delta

@@ -1,157 +1,215 @@
-#!/usr/bin/env python3
-"""
-EVM to RISC-V Transpiler - Main Driver
+# main.py - Entry point for EVM-to-RISC-V transpiler
 
-Orchestrates the complete transpilation process from EVM bytecode or assembly
-to RISC-V assembly.
-"""
-
+import argparse
 import sys
 import os
-import argparse
-import logging
-from pathlib import Path
+import json
+from datetime import datetime
 
-# Import all components
-from transpiler.evm_parser import EVMParser
-from transpiler.optimizer import IROptimizer
-from transpiler.pattern import EVMPattern
-
-from transpiler.opcode_mapping import OpcodeMapper
-from transpiler.riscv_emitter import RISCVEmitter
-from transpiler.environment import EVMEnvironment
-from transpiler.arithmetic import ArithmeticHandler
-from transpiler.memory_model import EVMMemoryModel
+# Update imports to use correct paths
+from .context_manager import create_transpilation_context
+from .evm_parser import parse_evm_assembly
+from .optimizer import optimize_instructions
+from .riscv_emitter import emit_riscv_assembly
+from .pattern import detect_patterns
+from .logging import initialize_logger, log, generate_debug_info, create_source_map
 
 
-def setup_logging(debug_mode: bool):
-    """Configure logging based on debug mode."""
-    log_level = logging.DEBUG if debug_mode else logging.INFO
-    logging.basicConfig(
-        level=log_level,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
+def parse_arguments():
+    """
+    Parse command line arguments.
+    
+    Returns:
+        argparse.Namespace: Parsed arguments
+    """
+    parser = argparse.ArgumentParser(description="EVM-to-RISC-V Transpiler")
+
+    parser.add_argument("input", help="Input EVM assembly file (.asm)")
+    parser.add_argument("-o", "--output", help="Output RISC-V assembly file (.s)", default="output.s")
+    parser.add_argument("--log-level", choices=["NONE", "ERROR", "WARN", "INFO", "DEBUG"],
+                        default="INFO", help="Logging verbosity level")
+    parser.add_argument("--debug-info", action="store_true", help="Generate debug info JSON")
+    parser.add_argument("--source-map", action="store_true", help="Generate source map between EVM and RISC-V")
+    parser.add_argument("--optimize", action="store_true", help="Enable optimization passes")
+
+    return parser.parse_args()
+
+
+def validate_input_file(input_file):
+    """
+    Validate that input file exists and has correct format.
+    
+    Args:
+        input_file (str): Path to input file
+    Returns:
+        bool: True if valid
+    """
+    if not os.path.isfile(input_file):
+        print(f"Error: File '{input_file}' does not exist.")
+        return False
+
+    if not input_file.endswith(".asm"):
+        print(f"Error: Input must be an .asm file")
+        return False
+
+    return True
+
+
+def configure_logging(args):
+    """
+    Configure logging system based on command-line flags.
+    
+    Args:
+        args (argparse.Namespace): Command-line arguments
+    """
+    initialize_logger(log_level=args.log_level)
+    log(f"Logger configured at level: {args.log_level}", level="INFO")
+
+
+def run_transpilation_pipeline(input_file, output_file, options):
+    """
+    Run the complete transpilation pipeline from EVM ASM to RISC-V ASM.
+    
+    Args:
+        input_file (str): Path to input EVM assembly file
+        output_file (str): Path to output RISC-V assembly file
+        options (argparse.Namespace): Additional options
+    Returns:
+        dict: Statistics about the transpilation process
+    """
+    stats = {
+        "start_time": datetime.now(),
+        "end_time": None,
+        "evm_instruction_count": 0,
+        "riscv_instruction_count": 0,
+        "optimization_passes": [],
+        "gas_estimate": 0,
+        "success": False
+    }
+
+    try:
+        # Step 1: Parse EVM Assembly
+        log(f"Parsing EVM assembly from {input_file}", level="INFO")
+        parse_result = parse_evm_assembly(input_file)
+
+        if not parse_result or not parse_result.get("instructions"):
+            log("Failed to parse EVM assembly", level="ERROR")
+            return stats
+
+        instructions = parse_result["instructions"]
+        context = parse_result["context"]
+        labels = parse_result.get("labels", {})
+
+        stats["evm_instruction_count"] = len(instructions)
+
+        # Optional: Generate debug info
+        if options.debug_info:
+            generate_debug_info(instructions)
+
+        # Step 2: Optimize Instructions
+        if options.optimize:
+            log("Running optimizations...", level="INFO")
+            optimized_ir = optimize_instructions(instructions, context)
+            stats["optimization_passes"].append("instruction_optimization")
+            stats["evm_instruction_count_after_opt"] = len(optimized_ir)
+        else:
+            optimized_ir = instructions
+
+        # Step 3: Emit RISC-V Assembly
+        log(f"Emitting RISC-V code to {output_file}", level="INFO")
+        riscv_code = emit_riscv_assembly(optimized_ir, context, output_file=output_file)
+        stats["riscv_instruction_count"] = len(riscv_code.splitlines())
+
+        # Optional: Source Map Generation
+        if options.source_map:
+            create_source_map(instructions, riscv_code.splitlines())
+
+        # Optional: Pattern Detection Report
+        patterns = detect_patterns(instructions)
+        stats["patterns_found"] = {k: len(v) for k, v in patterns.items()}
+
+        stats["gas_estimate"] = context.gas_meter.get("total", 0)
+        stats["success"] = True
+
+    except Exception as e:
+        log(f"Transpilation failed: {e}", level="ERROR")
+        stats["error"] = str(e)
+        stats["success"] = False
+
+    finally:
+        stats["end_time"] = datetime.now()
+        stats["duration"] = (stats["end_time"] - stats["start_time"]).total_seconds()
+
+    return stats
+
+
+def display_statistics(stats):
+    """
+    Display transpilation statistics to user.
+    
+    Args:
+        stats (dict): Statistics dictionary
+    """
+    print("\n📊 Transpilation Statistics:")
+    print(f"Started at       : {stats['start_time']}")
+    print(f"Finished at      : {stats['end_time']}")
+    print(f"Duration         : {stats['duration']:.2f} seconds")
+    print(f"Success          : {'✅' if stats['success'] else '❌'}")
+    print(f"EVM Instructions : {stats['evm_instruction_count']}")
+    if "evm_instruction_count_after_opt" in stats:
+        print(f"EVM Instructions (after opt): {stats['evm_instruction_count_after_opt']}")
+    print(f"RISC-V Instructions: {stats['riscv_instruction_count']}")
+    print(f"Estimated Gas Cost: {stats.get('gas_estimate', 0)}")
+
+    if "patterns_found" in stats:
+        print("\n🔍 Detected Patterns:")
+        for pattern, count in stats["patterns_found"].items():
+            if count > 0:
+                print(f"  - {pattern}: {count}")
+
+
+def handle_errors(error, context=None):
+    """
+    Handle and report errors during transpilation.
+    
+    Args:
+        error (Exception): Exception object
+        context (CompilationContext): Current state if available
+    """
+    log(f"Unhandled error: {str(error)}", level="ERROR")
+    print(f"\n🚨 Critical Error: {str(error)}")
+    if context and hasattr(context, "function_info"):
+        print(f"Current function: {context.function_info.get('name', 'unknown')}")
+    sys.exit(1)
 
 
 def main():
-    parser = argparse.ArgumentParser(description="EVM to RISC-V Transpiler")
-    parser.add_argument("input_file", help="Path to the input file containing EVM bytecode or assembly")
-    parser.add_argument("-o", "--output", dest="output", help="Path to output file")
-    parser.add_argument("-a", "--asm", dest="is_assembly", action="store_true",
-                        help="Indicates that input is EVM assembly")
-    parser.add_argument("-d", "--debug", dest="debug_mode", action="store_true",
-                        help="Enable debug mode")
-    parser.add_argument("-O", "--optimize", dest="optimization_level", type=int,
-                        choices=range(0, 4), default=1, help="Optimization level (0-3)")
+    """
+    Main entry point for CLI execution.
+    """
+    args = parse_arguments()
 
-    args = parser.parse_args()
-    setup_logging(args.debug_mode)
-    logger = logging.getLogger(__name__)
-
-    # Resolve absolute paths
-    try:
-        input_path = Path(args.input_file).resolve(strict=True)
-        output_path = Path(args.output).resolve() if args.output else input_path.with_suffix('.s')
-    except FileNotFoundError:
-        logger.error(f"Input file not found: {args.input_file}")
-        logger.info("Available files in current directory:")
-        for file in Path.cwd().glob('*'):
-            logger.info(f"  {file.name}")
+    if not validate_input_file(args.input):
         sys.exit(1)
 
-    logger.info(f"Transpiling {input_path} to {output_path}")
-    logger.debug(f"Options: is_assembly={args.is_assembly}, optimize={args.optimization_level}")
+    configure_logging(args)
+
+    log(f"Starting EVM-to-RISC-V transpiler", level="INFO")
 
     try:
-        # Step 1: Parse EVM input
-        if not input_path.exists():
-            raise FileNotFoundError(f"Input file does not exist: {input_path}")
-        if not input_path.is_file():
-            raise ValueError(f"Input path is not a file: {input_path}")
+        stats = run_transpilation_pipeline(
+            input_file=args.input,
+            output_file=args.output,
+            options=args
+        )
 
-        logger.info("Parsing EVM input")
-        evm_parser = EVMParser()
-        ir_instructions = evm_parser.parse_file(input_path)
-        logger.info(f"Parsed {len(ir_instructions)} instructions")
+        display_statistics(stats)
 
-        # Step 2: Analyze stack usage
-        logger.info("Analyzing stack usage")
-        try:
-            stack_analysis = evm_parser.analyze_stack_usage()
-            logger.debug(f"Max stack depth: {stack_analysis['max_stack_depth']}")
-            if not stack_analysis['is_balanced']:
-                logger.warning("Stack is not balanced at the end of execution")
-        except Exception as e:
-            logger.warning(f"Stack analysis failed: {e}, continuing without stack information")
-            stack_analysis = {'max_stack_depth': 0, 'is_balanced': False}
+        if not stats["success"]:
+            sys.exit(1)
 
-        # Step 3: Optimize IR
-        logger.info("Optimizing intermediate representation")
-        optimizer = IROptimizer()
-        ir_data = {
-            'instructions': ir_instructions,
-            'basic_blocks': evm_parser.basic_blocks,
-            'control_flow_graph': evm_parser.control_flow_graph
-        }
-        optimizer.load_ir(ir_data)
-        optimizer.optimize()
-
-        optimization_stats = optimizer.get_stats()
-        logger.info(f"Reduced from {optimization_stats['original_count']} to "
-                    f"{optimization_stats['optimized_count']} instructions")
-
-        # Step 4: Apply pattern-based optimizations
-        logger.info("Applying pattern recognition and optimizations")
-        pattern_matcher = EVMPattern(name="DefaultPattern", opcodes=["*"])
-        patterns_found = pattern_matcher.scan_instructions(optimizer.optimized_ir)
-        logger.debug(f"Found {len(patterns_found)} optimization patterns")
-        optimized_with_patterns = pattern_matcher.apply_optimizations(optimizer.optimized_ir, patterns_found)
-
-        # Step 5: Setup runtime environment
-        logger.info("Setting up runtime environment")
-        emitter = RISCVEmitter(input_path.as_posix(), output_path.as_posix())
-        emitter.emit_header()
-
-        # Step 6: Map opcodes to RISC-V instructions
-        logger.info("Mapping EVM opcodes to RISC-V instructions")
-        for instr in optimized_with_patterns:
-            try:
-                if args.optimization_level > 0:  # Assuming gas metering is tied to optimization level
-                    emitter.emit(f"    # Gas cost: {instr.gas}")
-                    emitter.emit(f"    li a0, {instr.gas}")
-                    emitter.emit(f"    call check_gas")
-
-                if isinstance(instr, dict):
-                    emitter.emit_instruction(instr['opcode'], *instr.get('args', []))
-                else:
-                    emitter.emit_instruction(instr.opcode, *instr.args)
-                    
-            except Exception as e:
-                logger.warning(f"Error processing instruction {instr}: {e}")
-
-        # Set instructions before transpiling
-        emitter.set_instructions(optimized_with_patterns)
-
-        # Transpile
-        emitter.transpile()
-
-        # Get and log stack analysis
-        stats = emitter.analyze_stack_usage()
-        logger.info("Stack analysis:")
-        logger.info(f"  Max stack depth: {stats['max_stack_depth']}")
-        logger.info(f"  Final stack depth: {stats['current_depth']}")
-        logger.info(f"  Stack balanced: {stats['is_balanced']}")
-
-        emitter.write_output()
-
-        logger.info("Transpilation completed successfully!")
-
-    except FileNotFoundError as e:
-        logger.error(f"File error: {e}")
-        sys.exit(1)
     except Exception as e:
-        logger.error(f"Transpilation failed: {e}", exc_info=args.debug_mode)
-        sys.exit(1)
+        handle_errors(e)
 
 
 if __name__ == "__main__":

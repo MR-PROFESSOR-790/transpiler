@@ -1,7 +1,7 @@
 # riscv_emitter.py - Emits RISC-V assembly code based on parsed EVM instructions
 
-from context_manager import Context
-from gas_costs import deduct_gas
+from .context_manager import Context
+from .gas_costs import deduct_gas, calculate_gas_cost
 from .register_allocator import allocate_registers_for_instruction
 import logging
 import os
@@ -17,24 +17,32 @@ def emit_riscv_assembly(ir_representation: list, context: Context, output_file: 
     Returns:
         str: Final formatted RISC-V assembly
     """
-    logging.log("Starting RISC-V assembly emission...")
-    
-    prologue = emit_function_prologue(context.function_info)
-    epilogue = emit_function_epilogue(context.function_info)
-    
-    body_code = []
-    for instr in ir_representation:
-        lines = emit_instruction_sequence([instr], context)
-        body_code.extend(lines)
+    try:
+        logging.debug("Starting RISC-V assembly emission...")
+        
+        if not ir_representation:
+            raise ValueError("Empty IR representation provided")
+        
+        prologue = emit_function_prologue(context.function_info)
+        epilogue = emit_function_epilogue(context.function_info)
+        
+        body_code = []
+        for instr in ir_representation:
+            lines = emit_instruction_sequence([instr], context)
+            body_code.extend(lines)
 
-    full_assembly = prologue + body_code + epilogue
-    formatted = format_assembly_output(full_assembly)
+        full_assembly = prologue + body_code + epilogue
+        formatted = format_assembly_output(full_assembly)
 
-    if output_file:
-        write_output_file(formatted, output_file)
+        if output_file:
+            write_output_file(formatted, output_file)
+            logging.debug(f"Successfully wrote assembly to {output_file}")
 
-    logging.log("RISC-V assembly generation complete.")
-    return formatted
+        return formatted
+        
+    except Exception as e:
+        logging.error(f"Error during RISC-V assembly emission: {str(e)}")
+        raise
 
 
 def emit_function_prologue(function_info):
@@ -96,14 +104,14 @@ def emit_instruction_sequence(instructions: list, context: Context):
         reg_alloc = allocate_registers_for_instruction(instr, context)
 
         # Gas cost emission
-        gas_line = emit_gas_cost(opcode)
+        gas_line = emit_gas_cost(opcode, context)
         if gas_line:
             riscv_lines.append(gas_line)
 
         # Handle special runtime functions
         if opcode in ["KECCAK256", "CALLDATACOPY", "CODECOPY"]:
             args = {"size": reg_alloc.get("size"), "offset": reg_alloc.get("offset")}
-            riscv_lines.extend(emit_runtime_call(opcode.lower(), args))
+            riscv_lines.extend(emit_runtime_calls(opcode.lower(), args))
             continue
 
         # Basic arithmetic opcodes
@@ -134,19 +142,12 @@ def emit_instruction_sequence(instructions: list, context: Context):
     return riscv_lines
 
 
-def emit_gas_cost(opcode: str):
-    """
-    Emit gas deduction line for given opcode if applicable.
-    
-    Args:
-        opcode (str): EVM opcode name
-    Returns:
-        str: RISC-V gas deduction line or None
-    """
-    gas_cost = deduct_gas(opcode)  # From gas_costs.py
-    if gas_cost:
-        return f"li a0, {gas_cost}\njal ra, deduct_gas"
-    return None
+def emit_gas_cost(opcode: str, context: Context = None) -> str:
+    """Emit gas deduction code"""
+    cost = calculate_gas_cost(opcode, context)
+    if cost > 0:
+        return f"li a0, {cost}\njal ra, deduct_gas"
+    return ""
 
 
 def emit_error_handling_code(error_type: str):
@@ -246,12 +247,20 @@ def format_assembly_output(assembly_code: list):
 
 def write_output_file(assembly_code: str, output_file: str):
     """
-    Write final RISC-V assembly to disk.
+    Write final RISC-V assembly to disk with error handling.
     
     Args:
         assembly_code (str): Formatted assembly string
         output_file (str): Path to output file
     """
-    logging.log(f"Writing RISC-V output to {output_file}")
-    with open(output_file, "w") as f:
-        f.write(assembly_code)
+    try:
+        output_dir = os.path.dirname(output_file)
+        if output_dir and not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+            
+        with open(output_file, "w") as f:
+            f.write(assembly_code)
+            
+    except IOError as e:
+        logging.error(f"Failed to write output file {output_file}: {str(e)}")
+        raise

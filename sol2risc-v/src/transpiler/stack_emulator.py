@@ -1,6 +1,6 @@
 # stack_emulator.py - Stack emulation for EVM-to-RISC-V transpiler
 
-from .context_manager import Context
+from .types import Context
 import logging
 
 
@@ -15,6 +15,7 @@ def initialize_stack_model(context: Context):
     Args:
         context (Context): Shared compilation state
     """
+    context.stack_height = 0
     if not hasattr(context, "stack"):
         context.stack = {
             "size": 0,
