@@ -1,170 +1,691 @@
-import re
-import logging
+class OpcodeMapper:
+    def __init__(self, stack_emulator, memory_model, riscv_emitter):
+        self.stack_emulator = stack_emulator
+        self.memory_model = memory_model
+        self.riscv_emitter = riscv_emitter
+        self.jump_destinations = set()
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-class OpcodeMapping:
-    def __init__(self):
-        # Base opcode map containing all standard EVM opcodes
-        self.opcode_map = {
-            # Arithmetic
-            "STOP":      {"instr": "nop", "args": 0},
-            "ADD":       {"instr": "add", "args": 2},
-            "MUL":       {"instr": "mul", "args": 2},
-            "SUB":       {"instr": "sub", "args": 2},
-            "DIV":       {"instr": "divu", "args": 2},  # unsigned
-            "SDIV":      {"instr": "div", "args": 2},   # signed
-            "MOD":       {"instr": "remu", "args": 2},  # unsigned
-            "SMOD":      {"instr": "rem", "args": 2},   # signed
-            "ADDMOD":    {"instr": "custom_addmod", "args": 3},
-            "MULMOD":    {"instr": "custom_mulmod", "args": 3},
-            "EXP":       {"instr": "custom_exp", "args": 2},
-            "SIGNEXTEND":{"instr": "custom_signextend", "args": 2},
-            "CALLVALUE": {"instr": "custom_callvalue", "args": 0},
-            "CALLDATASIZE": {"instr": "custom_calldatasize", "args": 0},
-            "CALLDATALOAD": {"instr": "custom_calldataload", "args": 1},
-            "CODECOPY": {"instr": "custom_codecopy", "args": 3},
-            "PUSH0": {"instr": "custom_push", "args": 0},
-            "SHA3": {"instr": "custom_sha3", "args": 2},
-
-            # Bitwise / Comparison
-            "LT":        {"instr": "sltu", "args": 2},  # unsigned
-            "GT":        {"instr": "sgtu", "args": 2},
-            "SLT":       {"instr": "slt", "args": 2},
-            "SGT":       {"instr": "sgt", "args": 2},
-            "EQ":        {"instr": "custom_eq", "args": 2},
-            "ISZERO":    {"instr": "custom_iszero", "args": 1},
-            "AND":       {"instr": "and", "args": 2},
-            "OR":        {"instr": "or", "args": 2},
-            "XOR":       {"instr": "xor", "args": 2},
-            "NOT":       {"instr": "custom_not", "args": 1},
-            "BYTE":      {"instr": "custom_byte", "args": 2},
-            "SHL":       {"instr": "sll", "args": 2},
-            "SHR":       {"instr": "srl", "args": 2},
-            "SAR":       {"instr": "sra", "args": 2},
-
-            # Memory and Storage
-            "POP":       {"instr": "custom_pop", "args": 1},
-            "MLOAD":     {"instr": "custom_mload", "args": 1},
-            "MSTORE":    {"instr": "custom_mstore", "args": 2},
-            "MSTORE8":   {"instr": "custom_mstore8", "args": 2},
-            "SLOAD":     {"instr": "custom_sload", "args": 1},
-            "SSTORE":    {"instr": "custom_sstore", "args": 2},
-            "MSIZE":     {"instr": "msize", "args": 0},
-
-            # Control Flow
-            "JUMP":      {"instr": "custom_jump", "args": 1},
-            "JUMPI":     {"instr": "custom_jumpi", "args": 2},
-            "PC":        {"instr": "custom_pc", "args": 0},
-            "JUMPDEST":  {"instr": "label", "args": 0},
-            "CALL":      {"instr": "custom_call", "args": 7},
-            "STATICCALL": {"instr": "custom_staticcall", "args": 6},
-            "DELEGATECALL": {"instr": "custom_delegatecall", "args": 6},
-            "CALLCODE":  {"instr": "callcode", "args": 7},
-
-            # Environment operations
-            "ADDRESS": {"instr": "custom_address", "args": 0},
-            "BALANCE": {"instr": "custom_balance", "args": 1},
-            "ORIGIN": {"instr": "custom_origin", "args": 0},
-            "CALLER": {"instr": "custom_caller", "args": 0},
-            "GASPRICE": {"instr": "custom_gasprice", "args": 0},
-            "SELFBALANCE": {"instr": "selfbalance", "args": 0},
-            "BASEFEE": {"instr": "basefee", "args": 0},
-            "CHAINID": {"instr": "chainid", "args": 0},
-            "GAS": {"instr": "gas", "args": 0},
-
-            # Block operations
-            "BLOCKHASH": {"instr": "custom_blockhash", "args": 1},
-            "COINBASE": {"instr": "custom_coinbase", "args": 0},
-            "TIMESTAMP": {"instr": "custom_timestamp", "args": 0},
-            "NUMBER": {"instr": "custom_number", "args": 0},
-            "DIFFICULTY": {"instr": "custom_difficulty", "args": 0},
-            "GASLIMIT": {"instr": "custom_gaslimit", "args": 0},
-
-            # Duplication and Swap
-            **{f"DUP{i}": {"instr": f"custom_dup{i}", "args": 0} for i in range(1, 17)},
-            "DUP0": {"instr": "dup0", "args": 0},
-            **{f"SWAP{i}": {"instr": f"custom_swap{i}", "args": 0} for i in range(1, 17)},
-
-            # Push Operations
-            **{f"PUSH{i}": {"instr": "custom_push", "args": 0} for i in range(0, 33)},  # Include PUSH0
-
-            # Logging
-            "LOG0":      {"instr": "custom_log0", "args": 2},
-            "LOG1":      {"instr": "custom_log1", "args": 3},
-            "LOG2":      {"instr": "custom_log2", "args": 4},
-            "LOG3":      {"instr": "custom_log3", "args": 5},
-            "LOG4":      {"instr": "custom_log4", "args": 6},
-
-            # Termination
-            "RETURN":    {"instr": "custom_return", "args": 2},
-            "REVERT":    {"instr": "custom_revert", "args": 2},
-            "INVALID":   {"instr": "invalid", "args": 0},
-            "SELFDESTRUCT": {"instr": "custom_selfdestruct", "args": 1},
-            "RETURNDATASIZE": {"instr": "returndatasize", "args": 0},
-            "RETURNDATACOPY": {"instr": "returndatacopy", "args": 3},
-        }
-
-    def get_riscv_mapping(self, evm_opcode, actual_args_count=None):
-        """Get RISC-V mapping for an EVM opcode with improved error handling."""
-        op = evm_opcode.upper()
-
-        # Handle special cases first
-        if self.is_push_opcode(op) or self.is_dup_opcode(op) or self.is_swap_opcode(op):
-            logger.debug(f"Opcode '{op}' matched as PUSH/DUP/SWAP.")
-            return self.opcode_map.get(op) or {"instr": "custom_push", "args": 0}
-
-        # Handle unknown opcodes
-        if op.startswith("UNKNOWN_0X"):
-            hex_value = op[10:]
-            return {"instr": f"# Unknown opcode: 0x{hex_value}", "args": 0}
-
-        # Handle standard opcodes
-        if op not in self.opcode_map:
-            logger.error(f"Unknown EVM opcode '{op}'.")
-            return {"instr": f"# Unsupported opcode: {op}", "args": 0}  # Return unsupported instead of raising exception
-
-        mapping = self.opcode_map[op]
-        
-        # Validate arguments if provided
-        if actual_args_count is not None and mapping["args"] != actual_args_count:
-            logger.warning(f"Opcode '{op}' expects {mapping['args']} args, got {actual_args_count}.")
-
-        logger.debug(f"Mapped EVM opcode '{op}' to RISC-V instruction '{mapping['instr']}'")
-        return mapping
-
-    def is_push_opcode(self, opcode):
-        return bool(re.fullmatch(r"PUSH([0-9]|[1-2][0-9]|3[0-2])", opcode.upper()))  # Include PUSH0
-
-    def is_dup_opcode(self, opcode):
-        return bool(re.fullmatch(r"DUP([1-9]|1[0-6])", opcode.upper()))
-
-    def is_swap_opcode(self, opcode):
-        return bool(re.fullmatch(r"SWAP([1-9]|1[0-6])", opcode.upper()))
-
-    def list_all_opcodes(self):
-        return sorted(self.opcode_map.keys())
-
-    def add_mapping(self, evm_opcode, riscv_instr, args):
-        """Add a new opcode mapping with improved error handling."""
-        op = evm_opcode.upper()
-        
-        # Check if opcode already exists
-        if op in self.opcode_map:
-            if self.opcode_map[op]["instr"] == riscv_instr and self.opcode_map[op]["args"] == args:
-                logger.debug(f"Opcode '{op}' already mapped identically")
-                return
-            logger.debug(f"Updating existing mapping for '{op}'")
+     # Register opcode handlers
+        self.handlers = {
+            # Stack operations
+            'PUSH': self._handle_push,
+            'POP': self._handle_pop,
+            'DUP': self._handle_dup,
+            'SWAP': self._handle_swap,
             
-        self.opcode_map[op] = {"instr": riscv_instr, "args": args}
-        logger.info(f"Added/Updated opcode mapping: {op} -> {riscv_instr} (args: {args})")
-
-    def remove_mapping(self, evm_opcode):
-        op = evm_opcode.upper()
-        if op not in self.opcode_map:
-            logger.error(f"Cannot remove '{op}': does not exist.")
-            raise ValueError(f"Opcode '{op}' does not exist.")
-        del self.opcode_map[op]
-        logger.info(f"Removed opcode mapping: {op}")
+            # Arithmetic operations
+            'ADD': self._handle_arithmetic('add'),
+            'SUB': self._handle_arithmetic('sub'),
+            'MUL': self._handle_arithmetic('mul'),
+            'DIV': self._handle_arithmetic('div'),
+            'SDIV': self._handle_arithmetic('div'),  # Signed division
+            'MOD': self._handle_arithmetic('rem'),
+            'SMOD': self._handle_arithmetic('rem'),  # Signed remainder
+            'ADDMOD': self._handle_add_mod,
+            'MULMOD': self._handle_mul_mod,
+            'EXP': self._handle_exp,
+            
+            # Comparison operations
+            'LT': self._handle_comparison('lt'),
+            'GT': self._handle_comparison('gt'),
+            'SLT': self._handle_comparison('lt', signed=True),
+            'SGT': self._handle_comparison('gt', signed=True),
+            'EQ': self._handle_comparison('eq'),
+            'ISZERO': self._handle_is_zero,
+            
+            # Bitwise operations
+            'AND': self._handle_bitwise('and'),
+            'OR': self._handle_bitwise('or'),
+            'XOR': self._handle_bitwise('xor'),
+            'NOT': self._handle_bitwise_not,
+            'BYTE': self._handle_byte,
+            'SHL': self._handle_shift('sll'),
+            'SHR': self._handle_shift('srl'),
+            'SAR': self._handle_shift('sra'),
+            
+            # Memory operations
+            'MLOAD': self._handle_mload,
+            'MSTORE': self._handle_mstore,
+            'MSTORE8': self._handle_mstore8,
+            'MSIZE': self._handle_msize,
+            
+            # Storage operations
+            'SLOAD': self._handle_sload,
+            'SSTORE': self._handle_sstore,
+            
+            # Control flow
+            'JUMP': self._handle_jump,
+            'JUMPI': self._handle_jumpi,
+            'JUMPDEST': self._handle_jumpdest,
+            'PC': self._handle_pc,
+            'STOP': self._handle_stop,
+            'RETURN': self._handle_return,
+            'REVERT': self._handle_revert,
+            
+            # Environment operations
+            'ADDRESS': self._handle_env_op('address'),
+            'BALANCE': self._handle_env_op('balance'),
+            'ORIGIN': self._handle_env_op('origin'),
+            'CALLER': self._handle_env_op('caller'),
+            'CALLVALUE': self._handle_env_op('callvalue'),
+            'CALLDATALOAD': self._handle_calldata_load,
+            'CALLDATASIZE': self._handle_env_op('calldatasize'),
+            'CALLDATACOPY': self._handle_calldata_copy,
+            'CODESIZE': self._handle_env_op('codesize'),
+            'CODECOPY': self._handle_code_copy,
+            'GASPRICE': self._handle_env_op('gasprice'),
+            'RETURNDATASIZE': self._handle_env_op('returndatasize'),
+            'RETURNDATACOPY': self._handle_returndata_copy,
+            'EXTCODESIZE': self._handle_env_op('extcodesize'),
+            'EXTCODECOPY': self._handle_extcode_copy,
+            
+            # Block operations
+            'BLOCKHASH': self._handle_env_op('blockhash'),
+            'COINBASE': self._handle_env_op('coinbase'),
+            'TIMESTAMP': self._handle_env_op('timestamp'),
+            'NUMBER': self._handle_env_op('number'),
+            'DIFFICULTY': self._handle_env_op('difficulty'),
+            'GASLIMIT': self._handle_env_op('gaslimit'),
+            
+            # Cryptographic operations
+            'SHA3': self._handle_sha3,
+            
+            # Contract creation/calling
+            'CREATE': self._handle_create,
+            'CALL': self._handle_call,
+            'CALLCODE': self._handle_callcode,
+            'DELEGATECALL': self._handle_delegatecall,
+            'STATICCALL': self._handle_staticcall,
+            'CREATE2': self._handle_create2,
+            
+            # Logging operations
+            'LOG0': self._handle_log(0),
+            'LOG1': self._handle_log(1),
+            'LOG2': self._handle_log(2),
+            'LOG3': self._handle_log(3),
+            'LOG4': self._handle_log(4),
+            
+            # Misc operations
+            'GAS': self._handle_gas,
+            'SELFDESTRUCT': self._handle_selfdestruct,
+        }
+        
+    def map_opcode(self, opcode, args=None):
+            if opcode in self.handlers:
+                self.handlers[opcode](args)
+            else:
+                raise ValueError(f"Opcode {opcode} not recognized")
+            
+    def _handle_push(self, value):
+        # Allocate register for the value
+        reg = self.stack.push()
+        # Load immediate value into register
+        self.emitter.emit(f"li {reg}, {value}")
+    
+    def _handle_pop(self, _):
+        """Handle POP operation"""
+        self.stack.pop()
+    
+    def _handle_dup(self, position):
+        """Handle DUP<n> operation"""
+        # Get the register holding the value to duplicate
+        src_reg = self.stack.get_nth_from_top(position)
+        # Push a new register on the stack
+        dest_reg = self.stack.push()
+        # Copy the value
+        self.emitter.emit(f"mv {dest_reg}, {src_reg}")
+    
+    def _handle_swap(self, position):
+        """Handle SWAP<n> operation"""
+        # Get registers to swap
+        top_reg = self.stack.get_top()
+        other_reg = self.stack.get_nth_from_top(position)
+        # Swap values using a temporary register
+        self.emitter.emit(f"mv t0, {top_reg}")
+        self.emitter.emit(f"mv {top_reg}, {other_reg}")
+        self.emitter.emit(f"mv {other_reg}, t0")
+    
+    def _handle_arithmetic(self, op):
+        """Create a handler for arithmetic operations"""
+        def handler(_):
+            b_reg = self.stack.pop()
+            a_reg = self.stack.pop()
+            result_reg = self.stack.push()
+            
+            # Handle 256-bit arithmetic
+            # For simplicity, this example only shows 32-bit operations
+            # In practice, you'd need multiple instructions for 256-bit values
+            
+            if op == 'add':
+                self.emitter.emit(f"add {result_reg}, {a_reg}, {b_reg}")
+            elif op == 'sub':
+                self.emitter.emit(f"sub {result_reg}, {a_reg}, {b_reg}")
+            elif op == 'mul':
+                self.emitter.emit(f"mul {result_reg}, {a_reg}, {b_reg}")
+            elif op == 'div':
+                # Check for division by zero
+                self.emitter.emit(f"beqz {b_reg}, div_by_zero")
+                self.emitter.emit(f"div {result_reg}, {a_reg}, {b_reg}")
+                self.emitter.emit(f"j div_done")
+                self.emitter.emit(f"div_by_zero:")
+                self.emitter.emit(f"li {result_reg}, 0")
+                self.emitter.emit(f"div_done:")
+            elif op == 'rem':
+                # Check for division by zero
+                self.emitter.emit(f"beqz {b_reg}, mod_by_zero")
+                self.emitter.emit(f"rem {result_reg}, {a_reg}, {b_reg}")
+                self.emitter.emit(f"j mod_done")
+                self.emitter.emit(f"mod_by_zero:")
+                self.emitter.emit(f"li {result_reg}, 0")
+                self.emitter.emit(f"mod_done:")
+        
+        return handler
+    
+    def _handle_add_mod(self, _):
+        """Handle ADDMOD operation"""
+        mod_reg = self.stack.pop()
+        b_reg = self.stack.pop()
+        a_reg = self.stack.pop()
+        result_reg = self.stack.push()
+        
+        # Check for mod by zero
+        self.emitter.emit(f"beqz {mod_reg}, addmod_zero")
+        
+        # addmod requires 512-bit intermediate results
+        # For brevity, simplified to 32-bit operations
+        self.emitter.emit(f"add t0, {a_reg}, {b_reg}")
+        self.emitter.emit(f"rem {result_reg}, t0, {mod_reg}")
+        
+        self.emitter.emit(f"j addmod_done")
+        self.emitter.emit(f"addmod_zero:")
+        self.emitter.emit(f"li {result_reg}, 0")
+        self.emitter.emit(f"addmod_done:")
+    
+    def _handle_mul_mod(self, _):
+        """Handle MULMOD operation"""
+        mod_reg = self.stack.pop()
+        b_reg = self.stack.pop()
+        a_reg = self.stack.pop()
+        result_reg = self.stack.push()
+        
+        # Check for mod by zero
+        self.emitter.emit(f"beqz {mod_reg}, mulmod_zero")
+        
+        # mulmod requires 512-bit intermediate results
+        # For brevity, simplified to 32-bit operations
+        self.emitter.emit(f"mul t0, {a_reg}, {b_reg}")
+        self.emitter.emit(f"rem {result_reg}, t0, {mod_reg}")
+        
+        self.emitter.emit(f"j mulmod_done")
+        self.emitter.emit(f"mulmod_zero:")
+        self.emitter.emit(f"li {result_reg}, 0")
+        self.emitter.emit(f"mulmod_done:")
+    
+    def _handle_exp(self, _):
+        """Handle EXP operation"""
+        # Exponentiation - call runtime helper
+        exponent_reg = self.stack.pop()
+        base_reg = self.stack.pop()
+        result_reg = self.stack.push()
+        
+        self.emitter.emit(f"mv a0, {base_reg}")
+        self.emitter.emit(f"mv a1, {exponent_reg}")
+        self.emitter.emit(f"call __evm_exp")
+        self.emitter.emit(f"mv {result_reg}, a0")
+    
+    def _handle_comparison(self, op, signed=False):
+        """Create a handler for comparison operations"""
+        def handler(_):
+            b_reg = self.stack.pop()
+            a_reg = self.stack.pop()
+            result_reg = self.stack.push()
+            
+            if op == 'lt':
+                if signed:
+                    self.emitter.emit(f"slt {result_reg}, {a_reg}, {b_reg}")
+                else:
+                    self.emitter.emit(f"sltu {result_reg}, {a_reg}, {b_reg}")
+            elif op == 'gt':
+                if signed:
+                    self.emitter.emit(f"slt {result_reg}, {b_reg}, {a_reg}")
+                else:
+                    self.emitter.emit(f"sltu {result_reg}, {b_reg}, {a_reg}")
+            elif op == 'eq':
+                self.emitter.emit(f"xor {result_reg}, {a_reg}, {b_reg}")
+                self.emitter.emit(f"seqz {result_reg}, {result_reg}")
+        
+        return handler
+    
+    def _handle_is_zero(self, _):
+        """Handle ISZERO operation"""
+        val_reg = self.stack.pop()
+        result_reg = self.stack.push()
+        self.emitter.emit(f"seqz {result_reg}, {val_reg}")
+    
+    def _handle_bitwise(self, op):
+        """Create a handler for bitwise operations"""
+        def handler(_):
+            b_reg = self.stack.pop()
+            a_reg = self.stack.pop()
+            result_reg = self.stack.push()
+            
+            self.emitter.emit(f"{op} {result_reg}, {a_reg}, {b_reg}")
+        
+        return handler
+    
+    def _handle_bitwise_not(self, _):
+        """Handle NOT operation"""
+        val_reg = self.stack.pop()
+        result_reg = self.stack.push()
+        # In RISC-V, NOT is implemented as XOR with -1
+        self.emitter.emit(f"li t0, -1")
+        self.emitter.emit(f"xor {result_reg}, {val_reg}, t0")
+    
+    def _handle_byte(self, _):
+        """Handle BYTE operation"""
+        pos_reg = self.stack.pop()
+        val_reg = self.stack.pop()
+        result_reg = self.stack.push()
+        
+        # Extract byte at position pos_reg from val_reg
+        # Complex for 256-bit values, simplified here
+        self.emitter.emit(f"li t0, 31")
+        self.emitter.emit(f"slt t1, {pos_reg}, t0")  # Check if pos < 32
+        self.emitter.emit(f"beqz t1, byte_out_of_range")
+        
+        self.emitter.emit(f"li t0, 8")
+        self.emitter.emit(f"mul t0, {pos_reg}, t0")  # t0 = pos * 8
+        self.emitter.emit(f"li t1, 31")
+        self.emitter.emit(f"sub t0, t1, t0")  # t0 = 31*8 - pos*8 (for big endian)
+        self.emitter.emit(f"srl t1, {val_reg}, t0")  # t1 = val >> t0
+        self.emitter.emit(f"andi {result_reg}, t1, 0xFF")  # result = t1 & 0xFF
+        
+        self.emitter.emit(f"j byte_done")
+        self.emitter.emit(f"byte_out_of_range:")
+        self.emitter.emit(f"li {result_reg}, 0")
+        self.emitter.emit(f"byte_done:")
+    
+    def _handle_shift(self, op):
+        """Create a handler for shift operations"""
+        def handler(_):
+            shift_reg = self.stack.pop()
+            val_reg = self.stack.pop()
+            result_reg = self.stack.push()
+            
+            # Check if shift amount >= 256, which gives 0 or -1 depending on op
+            self.emitter.emit(f"li t0, 256")
+            self.emitter.emit(f"sltu t1, {shift_reg}, t0")  # t1 = (shift < 256)
+            self.emitter.emit(f"beqz t1, shift_overflow")
+            
+            # Normal shift
+            self.emitter.emit(f"{op} {result_reg}, {val_reg}, {shift_reg}")
+            self.emitter.emit(f"j shift_done")
+            
+            # Handle shift >= 256
+            self.emitter.emit(f"shift_overflow:")
+            if op == 'sra':  # arithmetic right shift preserves sign
+                self.emitter.emit(f"srai {result_reg}, {val_reg}, 31")  # All 0s or all 1s
+            else:
+                self.emitter.emit(f"li {result_reg}, 0")
+            self.emitter.emit(f"shift_done:")
+        
+        return handler
+    
+    def _handle_mload(self, _):
+        """Handle MLOAD operation"""
+        offset_reg = self.stack.pop()
+        result_reg = self.stack.push()
+        
+        # Call memory model to handle the load
+        self.memory.mload(offset_reg, result_reg)
+    
+    def _handle_mstore(self, _):
+        """Handle MSTORE operation"""
+        value_reg = self.stack.pop()
+        offset_reg = self.stack.pop()
+        
+        # Call memory model to handle the store
+        self.memory.mstore(offset_reg, value_reg)
+    
+    def _handle_mstore8(self, _):
+        """Handle MSTORE8 operation"""
+        value_reg = self.stack.pop()
+        offset_reg = self.stack.pop()
+        
+        # Call memory model to handle the byte store
+        self.memory.mstore8(offset_reg, value_reg)
+    
+    def _handle_msize(self, _):
+        """Handle MSIZE operation"""
+        result_reg = self.stack.push()
+        
+        # Get current memory size from memory model
+        self.memory.get_size(result_reg)
+    
+    def _handle_sload(self, _):
+        """Handle SLOAD operation"""
+        key_reg = self.stack.pop()
+        result_reg = self.stack.push()
+        
+        # Call storage runtime
+        self.emitter.emit(f"mv a0, {key_reg}")
+        self.emitter.emit(f"call __evm_sload")
+        self.emitter.emit(f"mv {result_reg}, a0")
+    
+    def _handle_sstore(self, _):
+        """Handle SSTORE operation"""
+        value_reg = self.stack.pop()
+        key_reg = self.stack.pop()
+        
+        # Call storage runtime
+        self.emitter.emit(f"mv a0, {key_reg}")
+        self.emitter.emit(f"mv a1, {value_reg}")
+        self.emitter.emit(f"call __evm_sstore")
+    
+    def _handle_jump(self, _):
+        """Handle JUMP operation"""
+        dest_reg = self.stack.pop()
+        
+        # Check if jump destination is valid (should be a JUMPDEST)
+        self.emitter.emit(f"mv a0, {dest_reg}")
+        self.emitter.emit(f"call __evm_validate_jump")
+        
+        # Jump to the destination
+        self.emitter.emit(f"jr {dest_reg}")
+    
+    def _handle_jumpi(self, _):
+        """Handle JUMPI operation"""
+        cond_reg = self.stack.pop()
+        dest_reg = self.stack.pop()
+        
+        # Check if condition is non-zero
+        self.emitter.emit(f"beqz {cond_reg}, jumpi_skip")
+        
+        # If true, validate jump destination
+        self.emitter.emit(f"mv a0, {dest_reg}")
+        self.emitter.emit(f"call __evm_validate_jump")
+        
+        # Jump to the destination
+        self.emitter.emit(f"jr {dest_reg}")
+        
+        # Skip target
+        self.emitter.emit(f"jumpi_skip:")
+    
+    def _handle_jumpdest(self, _):
+        """Handle JUMPDEST operation"""
+        # Just emit a label, actual registration happens during parsing
+        pass
+    
+    def _handle_pc(self, _):
+        """Handle PC operation - gets current program counter"""
+        result_reg = self.stack.push()
+        
+        # Call runtime function to get PC
+        self.emitter.emit(f"call __evm_get_pc")
+        self.emitter.emit(f"mv {result_reg}, a0")
+    
+    def _handle_stop(self, _):
+        """Handle STOP operation"""
+        self.emitter.emit(f"j evm_exit")
+    
+    def _handle_return(self, _):
+        """Handle RETURN operation"""
+        size_reg = self.stack.pop()
+        offset_reg = self.stack.pop()
+        
+        # Call return runtime function
+        self.emitter.emit(f"mv a0, {offset_reg}")
+        self.emitter.emit(f"mv a1, {size_reg}")
+        self.emitter.emit(f"call __evm_return")
+        self.emitter.emit(f"j evm_exit")
+    
+    def _handle_revert(self, _):
+        """Handle REVERT operation"""
+        size_reg = self.stack.pop()
+        offset_reg = self.stack.pop()
+        
+        # Call revert runtime function
+        self.emitter.emit(f"mv a0, {offset_reg}")
+        self.emitter.emit(f"mv a1, {size_reg}")
+        self.emitter.emit(f"call __evm_revert")
+        self.emitter.emit(f"j evm_exit")
+    
+    def _handle_env_op(self, operation):
+        """Create a handler for environment operations"""
+        def handler(_):
+            result_reg = self.stack.push()
+            
+            # Call appropriate runtime function
+            self.emitter.emit(f"call __evm_{operation}")
+            self.emitter.emit(f"mv {result_reg}, a0")
+        
+        return handler
+    
+    def _handle_calldata_load(self, _):
+        """Handle CALLDATALOAD operation"""
+        index_reg = self.stack.pop()
+        result_reg = self.stack.push()
+        
+        # Call runtime function
+        self.emitter.emit(f"mv a0, {index_reg}")
+        self.emitter.emit(f"call __evm_calldataload")
+        self.emitter.emit(f"mv {result_reg}, a0")
+    
+    def _handle_calldata_copy(self, _):
+        """Handle CALLDATACOPY operation"""
+        size_reg = self.stack.pop()
+        dataOffset_reg = self.stack.pop()
+        memOffset_reg = self.stack.pop()
+        
+        # Call runtime function
+        self.emitter.emit(f"mv a0, {memOffset_reg}")
+        self.emitter.emit(f"mv a1, {dataOffset_reg}")
+        self.emitter.emit(f"mv a2, {size_reg}")
+        self.emitter.emit(f"call __evm_calldatacopy")
+    
+    def _handle_code_copy(self, _):
+        """Handle CODECOPY operation"""
+        size_reg = self.stack.pop()
+        codeOffset_reg = self.stack.pop()
+        memOffset_reg = self.stack.pop()
+        
+        # Call runtime function
+        self.emitter.emit(f"mv a0, {memOffset_reg}")
+        self.emitter.emit(f"mv a1, {codeOffset_reg}")
+        self.emitter.emit(f"mv a2, {size_reg}")
+        self.emitter.emit(f"call __evm_codecopy")
+    
+    def _handle_returndata_copy(self, _):
+        """Handle RETURNDATACOPY operation"""
+        size_reg = self.stack.pop()
+        returnOffset_reg = self.stack.pop()
+        memOffset_reg = self.stack.pop()
+        
+        # Call runtime function
+        self.emitter.emit(f"mv a0, {memOffset_reg}")
+        self.emitter.emit(f"mv a1, {returnOffset_reg}")
+        self.emitter.emit(f"mv a2, {size_reg}")
+        self.emitter.emit(f"call __evm_returndatacopy")
+    
+    def _handle_extcode_copy(self, _):
+        """Handle EXTCODECOPY operation"""
+        size_reg = self.stack.pop()
+        codeOffset_reg = self.stack.pop()
+        memOffset_reg = self.stack.pop()
+        address_reg = self.stack.pop()
+        
+        # Call runtime function
+        self.emitter.emit(f"mv a0, {address_reg}")
+        self.emitter.emit(f"mv a1, {memOffset_reg}")
+        self.emitter.emit(f"mv a2, {codeOffset_reg}")
+        self.emitter.emit(f"mv a3, {size_reg}")
+        self.emitter.emit(f"call __evm_extcodecopy")
+    
+    def _handle_sha3(self, _):
+        """Handle SHA3 operation"""
+        size_reg = self.stack.pop()
+        offset_reg = self.stack.pop()
+        result_reg = self.stack.push()
+        
+        # Call runtime function
+        self.emitter.emit(f"mv a0, {offset_reg}")
+        self.emitter.emit(f"mv a1, {size_reg}")
+        self.emitter.emit(f"call __evm_sha3")
+        self.emitter.emit(f"mv {result_reg}, a0")
+    
+    def _handle_create(self, _):
+        """Handle CREATE operation"""
+        value_reg = self.stack.pop()
+        offset_reg = self.stack.pop()
+        size_reg = self.stack.pop()
+        result_reg = self.stack.push()
+        
+        # Call runtime function
+        self.emitter.emit(f"mv a0, {value_reg}")
+        self.emitter.emit(f"mv a1, {offset_reg}")
+        self.emitter.emit(f"mv a2, {size_reg}")
+        self.emitter.emit(f"call __evm_create")
+        self.emitter.emit(f"mv {result_reg}, a0")
+    
+    def _handle_create2(self, _):
+        """Handle CREATE2 operation"""
+        value_reg = self.stack.pop()
+        offset_reg = self.stack.pop()
+        size_reg = self.stack.pop()
+        salt_reg = self.stack.pop()
+        result_reg = self.stack.push()
+        
+        # Call runtime function
+        self.emitter.emit(f"mv a0, {value_reg}")
+        self.emitter.emit(f"mv a1, {offset_reg}")
+        self.emitter.emit(f"mv a2, {size_reg}")
+        self.emitter.emit(f"mv a3, {salt_reg}")
+        self.emitter.emit(f"call __evm_create2")
+        self.emitter.emit(f"mv {result_reg}, a0")
+    
+    def _handle_call(self, _):
+        """Handle CALL operation"""
+        # Pop all the arguments
+        gas_reg = self.stack.pop()
+        address_reg = self.stack.pop()
+        value_reg = self.stack.pop()
+        argsOffset_reg = self.stack.pop()
+        argsSize_reg = self.stack.pop()
+        retOffset_reg = self.stack.pop()
+        retSize_reg = self.stack.pop()
+        result_reg = self.stack.push()
+        
+        # Call runtime function
+        self.emitter.emit(f"mv a0, {gas_reg}")
+        self.emitter.emit(f"mv a1, {address_reg}")
+        self.emitter.emit(f"mv a2, {value_reg}")
+        self.emitter.emit(f"mv a3, {argsOffset_reg}")
+        self.emitter.emit(f"mv a4, {argsSize_reg}")
+        self.emitter.emit(f"mv a5, {retOffset_reg}")
+        self.emitter.emit(f"mv a6, {retSize_reg}")
+        self.emitter.emit(f"call __evm_call")
+        self.emitter.emit(f"mv {result_reg}, a0")
+    
+    def _handle_callcode(self, _):
+        """Handle CALLCODE operation"""
+        # Similar to CALL but different semantics in runtime
+        gas_reg = self.stack.pop()
+        address_reg = self.stack.pop()
+        value_reg = self.stack.pop()
+        argsOffset_reg = self.stack.pop()
+        argsSize_reg = self.stack.pop()
+        retOffset_reg = self.stack.pop()
+        retSize_reg = self.stack.pop()
+        result_reg = self.stack.push()
+        
+        # Call runtime function
+        self.emitter.emit(f"mv a0, {gas_reg}")
+        self.emitter.emit(f"mv a1, {address_reg}")
+        self.emitter.emit(f"mv a2, {value_reg}")
+        self.emitter.emit(f"mv a3, {argsOffset_reg}")
+        self.emitter.emit(f"mv a4, {argsSize_reg}")
+        self.emitter.emit(f"mv a5, {retOffset_reg}")
+        self.emitter.emit(f"mv a6, {retSize_reg}")
+        self.emitter.emit(f"call __evm_callcode")
+        self.emitter.emit(f"mv {result_reg}, a0")
+    
+    def _handle_delegatecall(self, _):
+        """Handle DELEGATECALL operation"""
+        gas_reg = self.stack.pop()
+        address_reg = self.stack.pop()
+        argsOffset_reg = self.stack.pop()
+        argsSize_reg = self.stack.pop()
+        retOffset_reg = self.stack.pop()
+        retSize_reg = self.stack.pop()
+        result_reg = self.stack.push()
+        
+        # Call runtime function
+        self.emitter.emit(f"mv a0, {gas_reg}")
+        self.emitter.emit(f"mv a1, {address_reg}")
+        self.emitter.emit(f"mv a2, {argsOffset_reg}")
+        self.emitter.emit(f"mv a3, {argsSize_reg}")
+        self.emitter.emit(f"mv a4, {retOffset_reg}")
+        self.emitter.emit(f"mv a5, {retSize_reg}")
+        self.emitter.emit(f"call __evm_delegatecall")
+        self.emitter.emit(f"mv {result_reg}, a0")
+    
+    def _handle_staticcall(self, _):
+        """Handle STATICCALL operation"""
+        gas_reg = self.stack.pop()
+        address_reg = self.stack.pop()
+        argsOffset_reg = self.stack.pop()
+        argsSize_reg = self.stack.pop()
+        retOffset_reg = self.stack.pop()
+        retSize_reg = self.stack.pop()
+        result_reg = self.stack.push()
+        
+        # Call runtime function
+        self.emitter.emit(f"mv a0, {gas_reg}")
+        self.emitter.emit(f"mv a1, {address_reg}")
+        self.emitter.emit(f"mv a2, {argsOffset_reg}")
+        self.emitter.emit(f"mv a3, {argsSize_reg}")
+        self.emitter.emit(f"mv a4, {retOffset_reg}")
+        self.emitter.emit(f"mv a5, {retSize_reg}")
+        self.emitter.emit(f"call __evm_staticcall")
+        self.emitter.emit(f"mv {result_reg}, a0")
+    
+    def _handle_log(self, topics):
+        """Create a handler for LOG operations"""
+        def handler(_):
+            # Always pop size and offset
+            size_reg = self.stack.pop()
+            offset_reg = self.stack.pop()
+            
+            # Pop topic registers based on LOG type
+            topic_regs = []
+            for i in range(topics):
+                topic_regs.append(self.stack.pop())
+            
+            # Call runtime function
+            self.emitter.emit(f"mv a0, {offset_reg}")
+            self.emitter.emit(f"mv a1, {size_reg}")
+            
+            # Pass topic registers
+            for i, reg in enumerate(topic_regs):
+                self.emitter.emit(f"mv a{i+2}, {reg}")
+            
+            self.emitter.emit(f"call __evm_log{topics}")
+        
+        return handler
+    
+    def _handle_gas(self, _):
+        """Handle GAS operation"""
+        result_reg = self.stack.push()
+        
+        # Call runtime function
+        self.emitter.emit(f"call __evm_gas")
+        self.emitter.emit(f"mv {result_reg}, a0")
+    
+    def _handle_selfdestruct(self, _):
+        """Handle SELFDESTRUCT operation"""
+        address_reg = self.stack.pop()
+        
+        # Call runtime function
+        self.emitter.emit(f"mv a0, {address_reg}")
+        self.emitter.emit(f"call __evm_selfdestruct")
+        self.emitter.emit(f"j evm_exit")
