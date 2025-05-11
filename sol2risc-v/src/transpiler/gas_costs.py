@@ -1,7 +1,5 @@
 # gas_costs.py - Gas cost calculation and tracking for EVM-to-RISC-V transpiler
 
-from .context_manager import Context
-from .riscv_emitter import emit_runtime_calls  # For inserting gas deduction calls
 import logging
 
 
@@ -133,155 +131,187 @@ STATIC_GAS_COSTS = {
 }
 
 
-def gas_cost_lookup(opcode: str) -> int:
-    """
-    Return static gas cost for an opcode.
+class GasCostCalculator:
+    """Handles gas cost calculation and deduction."""
     
-    Args:
-        opcode (str): EVM instruction name
-    Returns:
-        int: Gas cost or 0 if unknown
-    """
-    return STATIC_GAS_COSTS.get(opcode, 0)
+    def __init__(self):
+        self.context = None
+        self.gas_costs = {
+            "ADD": 3,
+            "MUL": 5,
+            "SUB": 3,
+            "DIV": 5,
+            "PUSH1": 3,
+            "POP": 2,
+            # ...existing costs...
+        }
+        # Initialize emit_runtime_call to None, will be set later
+        self.emit_runtime_call = None
+        
+    def set_context(self, context):
+        """Set compilation context."""
+        self.context = context
+        self._init_dependencies()  # Initialize dependencies when context is set
+        
+    def calculate_gas_cost(self, opcode: str, context=None) -> int:
+        """Calculate gas cost for an opcode."""
+        return self.gas_costs.get(opcode, 0)
+        
+    def deduct_gas(self, amount: int) -> bool:
+        """Deduct gas from remaining balance."""
+        if self.context and hasattr(self.context, "gas_meter"):
+            self.context.gas_meter["total"] -= amount
+            return True
+        return False
 
+    def _init_dependencies(self):
+        """Lazy-load dependencies to prevent circular import issues."""
+        if self.context:  # Only initialize if context exists
+            from .riscv_emitter import RiscvEmitter
+            from .stack_emulator import StackEmulator
+            from .memory_model import MemoryModel
 
-def calculate_gas_cost(opcode: str, context: Context):
-    """
-    Calculate total gas cost including memory expansion for this opcode.
-    
-    Args:
-        opcode (str): EVM instruction name
-        context (Context): Shared compilation state
-    Returns:
-        int: Total gas cost
-    """
-    base_cost = gas_cost_lookup(opcode)
+            self.emit_runtime_call = RiscvEmitter.emit_runtime_calls
+            self.stack_model = StackEmulator(self.context)
+            self.memory_model = MemoryModel(self.context)
+    # --- Public Methods ---
 
-    # Add dynamic memory cost if applicable
-    mem_expansion_cost = 0
-    if opcode in ["MLOAD", "MSTORE", "MSTORE8", "CALLDATACOPY", "CODECOPY"]:
-        size = context.memory.get_current_size()  # Hypothetical method
-        new_size = size + 32  # Example: assume 32-byte write
-        mem_expansion_cost = calculate_memory_expansion_cost(new_size, context)
+    def gas_cost_lookup(self, opcode: str) -> int:
+        """
+        Return static gas cost for an opcode.
+        
+        Args:
+            opcode (str): EVM instruction name
+        Returns:
+            int: Gas cost or 0 if unknown
+        """
+        return STATIC_GAS_COSTS.get(opcode, 0)
 
-    total_cost = base_cost + mem_expansion_cost
-    track_gas_usage({"opcode": opcode, "cost": total_cost}, context)
-    return total_cost
+    def calculate_gas_cost(self, opcode: str):
+        """
+        Calculate total gas cost including memory expansion for this opcode.
+        
+        Args:
+            opcode (str): EVM instruction name
+        Returns:
+            int: Total gas cost
+        """
+        base_cost = self.gas_cost_lookup(opcode)
 
+        # Add dynamic memory cost if applicable
+        mem_expansion_cost = 0
+        if opcode in ["MLOAD", "MSTORE", "MSTORE8", "CALLDATACOPY", "CODECOPY"]:
+            try:
+                size = self.context.memory_model.get_current_memory_size()
+            except:
+                size = 0
+            new_size = size + 32  # Example: assume 32-byte write
+            mem_expansion_cost = self.calculate_memory_expansion_cost(new_size)
 
-def calculate_memory_expansion_cost(size: int, context: Context):
-    """
-    Memory expansion cost formula from EIP-150.
-    
-    Args:
-        size (int): New required memory size (in bytes)
-        context (Context): Shared compilation state
-    Returns:
-        int: Gas cost for expanding memory to this size
-    """
-    current_mem = context.memory.get_current_size()
-    if size <= current_mem:
-        return 0
+        total_cost = base_cost + mem_expansion_cost
+        self.track_gas_usage({"opcode": opcode, "cost": total_cost})
+        return total_cost
 
-    words = (size + 31) // 32
-    word_cost = words * 3
-    quadratic_cost = words * words // 512
-    total_cost = word_cost + quadratic_cost
+    def calculate_memory_expansion_cost(self, size: int):
+        """
+        Memory expansion cost formula from EIP-150.
+        
+        Args:
+            size (int): New required memory size (in bytes)
+        Returns:
+            int: Gas cost for expanding memory to this size
+        """
+        current_mem = self.context.memory_model.get_current_memory_size()
 
-    if current_mem > 0:
-        current_words = (current_mem + 31) // 32
-        current_word_cost = current_words * 3
-        current_quad_cost = current_words * current_words // 512
-        current_total = current_word_cost + current_quad_cost
-        total_cost -= current_total
+        if size <= current_mem:
+            return 0
 
-    return max(total_cost, 0)
+        words = (size + 31) // 32
+        word_cost = words * 3
+        quadratic_cost = (words * words) // 512
+        total_cost = word_cost + quadratic_cost
 
+        if current_mem > 0:
+            current_words = (current_mem + 31) // 32
+            current_word_cost = current_words * 3
+            current_quad_cost = (current_words * current_words) // 512
+            current_total = current_word_cost + current_quad_cost
+            total_cost -= current_total
 
-def calculate_storage_cost(operation: str, context: Context):
-    """
-    Calculate storage read/write cost based on operation type.
-    
-    Args:
-        operation (str): 'read', 'write', 'reset', etc.
-        context (Context): Compilation context
-    Returns:
-        int: Gas cost
-    """
-    costs = {
-        "read": 100,
-        "write": 20000,
-        "reset": 5000,
-        "delete": 15000
-    }
-    cost = costs.get(operation.lower(), 0)
-    track_gas_usage({"opcode": f"storage_{operation}", "cost": cost}, context)
-    return cost
+        return max(total_cost, 0)
 
+    def calculate_storage_cost(self, operation: str):
+        """
+        Calculate storage read/write cost based on operation type.
+        
+        Args:
+            operation (str): 'read', 'write', 'reset', etc.
+        Returns:
+            int: Gas cost
+        """
+        costs = {
+            "read": 100,
+            "write": 20000,
+            "reset": 5000,
+            "delete": 15000
+        }
+        cost = costs.get(operation.lower(), 0)
+        self.track_gas_usage({"opcode": f"storage_{operation}", "cost": cost})
+        return cost
 
-def calculate_call_cost(context: Context):
-    """
-    Estimate gas cost for CALL-like operations.
-    
-    Args:
-        context (Context): Compilation context
-    Returns:
-        int: Gas cost
-    """
-    base_cost = 700
-    value_transfer = context.stack.peek(2)  # Assume value is at index 2
-    if value_transfer != 0:
-        base_cost += 9000  # Extra for value transfer
-    track_gas_usage({"opcode": "CALL", "cost": base_cost}, context)
-    return base_cost
+    def calculate_call_cost(self):
+        """
+        Estimate gas cost for CALL-like operations.
+        
+        Returns:
+            int: Gas cost
+        """
+        base_cost = 700
+        value_transfer = self.context.stack_model.peek(2)  # Assume value is at index 2
+        if value_transfer != 0:
+            base_cost += 9000  # Extra for value transfer
+        self.track_gas_usage({"opcode": "CALL", "cost": base_cost})
+        return base_cost
 
+    def calculate_create_cost(self):
+        """
+        Estimate gas cost for CREATE operations.
+        
+        Returns:
+            int: Gas cost
+        """
+        base_cost = 32000
+        self.track_gas_usage({"opcode": "CREATE", "cost": base_cost})
+        return base_cost
 
-def calculate_create_cost(context: Context):
-    """
-    Estimate gas cost for CREATE operations.
-    
-    Args:
-        context (Context): Compilation context
-    Returns:
-        int: Gas cost
-    """
-    base_cost = 32000
-    track_gas_usage({"opcode": "CREATE", "cost": base_cost}, context)
-    return base_cost
+    def track_gas_usage(self, instruction: dict):
+        """
+        Update context with cumulative gas usage.
+        
+        Args:
+            instruction (dict): Instruction metadata
+        """
+        opcode = instruction.get("opcode", "unknown")
+        cost = instruction.get("cost", 0)
 
+        self.context.gas_meter["total"] = self.context.gas_meter.get("total", 0) + cost
+        breakdown = self.context.gas_meter.setdefault("breakdown", {})
+        breakdown[opcode] = breakdown.get(opcode, 0) + cost
 
-def track_gas_usage(instruction: dict, context: Context):
-    """
-    Update context with cumulative gas usage.
-    
-    Args:
-        instruction (dict): Instruction metadata
-        context (Context): Shared compilation state
-    """
-    opcode = instruction.get("opcode", "unknown")
-    cost = instruction.get("cost", 0)
+        logging.log(f"Gas used by {opcode}: {cost} | Total so far: {self.context.gas_meter['total']}")
 
-    context.gas_meter["total"] = context.gas_meter.get("total", 0) + cost
-    context.gas_meter.setdefault("breakdown", {})[opcode] = \
-        context.gas_meter["breakdown"].get(opcode, 0) + cost
+    def emit_gas_tracking_code(self):
+        """
+        Generate RISC-V assembly instructions to dynamically track gas usage.
+        
+        Returns:
+            list[str]: Assembly lines for gas tracking
+        """
+        lines = []
 
-    logging.log(f"Gas used by {opcode}: {cost} | Total so far: {context.gas_meter['total']}")
+        total_gas = self.context.gas_meter.get("total", 0)
+        if total_gas > 0:
+            lines.append(f"li a0, {total_gas}")
+            lines.append("jal ra, deduct_gas")
 
-
-def emit_gas_tracking_code(context: Context):
-    """
-    Generate RISC-V assembly instructions to dynamically track gas usage.
-    
-    Args:
-        context (Context): Compilation context
-    Returns:
-        list[str]: Assembly lines for gas tracking
-    """
-    lines = []
-
-    total_gas = context.gas_meter.get("total", 0)
-    if total_gas > 0:
-        lines.append(f"li a0, {total_gas}")
-        lines.append("jal ra, deduct_gas")
-
-    return lines
+        return lines

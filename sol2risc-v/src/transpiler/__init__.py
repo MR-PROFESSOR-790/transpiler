@@ -1,5 +1,5 @@
 """
-RISC-V Transpiler Package
+EVM to RISC-V Transpiler Package
 """
 
 __version__ = '0.1.0'

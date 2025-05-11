@@ -1,206 +1,231 @@
 # optimizer.py - Optimizer module for EVM-to-RISC-V transpiler
 
-from .context_manager import Context
-from .pattern import matches_known_pattern, apply_pattern_rewrite
-from .arithmetic import optimize_arithmetic_sequence
 import logging
 
 
-def optimize_instructions(instructions: list, context: Context):
+class InstructionOptimizer:
     """
-    Main entry point for instruction optimization.
+    Main class responsible for optimizing EVM instruction sequences.
     
-    Args:
-        instructions (list): List of parsed EVM instructions
-        context (Context): Shared compilation state
-    Returns:
-        list: Optimized instruction list
+    Integrates with pattern recognition, arithmetic optimization,
+    register allocation, and memory access patterns.
     """
-    logging.log("Starting optimization pass...")
 
-    # Apply multiple optimization passes
-    optimized = instructions.copy()
+    def __init__(self):
+        """
+        Initialize optimizer with optional context.
+        """
+        self.context = None
 
-    optimized = perform_constant_folding(optimized, context)
-    optimized = eliminate_dead_code(optimized, context)
-    optimized = coalesce_operations(optimized, context)
-    optimized = reorder_instructions(optimized, context)
-    optimized = optimize_register_usage(optimized, context)
-    optimized = optimize_memory_access(optimized, context)
-    optimized = apply_peephole_optimizations(optimized, context)
+    def set_context(self, context):
+        """
+        Set compilation context.
 
-    logging.log(f"Optimization complete. Instructions reduced from {len(instructions)} → {len(optimized)}")
-    return optimized
+        Args:
+            context (Context): Shared state object
+        """
+        self.context = context
+        self._init_dependencies()
 
+    def _init_dependencies(self):
+        """Lazy-load dependent modules to avoid circular imports."""
+        if self.context is None:
+            return
 
-def perform_constant_folding(instructions: list, context: Context):
-    """
-    Replace constant expressions with their computed values.
-    
-    Args:
-        instructions (list): EVM IR instructions
-        context (Context): Compilation context
-    Returns:
-        list: Optimized instruction list
-    """
-    logging.log("Performing constant folding...")
-    optimized = []
-    i = 0
-    while i < len(instructions):
-        instr = instructions[i]
+        from .pattern import PatternRecognizer
+        from .arithmetic import ArithmeticTranslator
 
-        if instr.get("opcode") in ["PUSH1", "PUSH2"] and i + 1 < len(instructions):
-            next_instr = instructions[i + 1]
-            if next_instr.get("opcode") in ["PUSH1", "PUSH2"]:
-                # Push two constants in sequence
-                val1 = int(instr["value"], 16)
-                val2 = int(next_instr["value"], 16)
-                result = val1 + val2
-                optimized.append({"opcode": "PUSH1", "value": hex(result)})
-                i += 2
-                continue
+        # Create pattern recognizer instance
+        self.pattern_recognizer = PatternRecognizer()
+        self.pattern_recognizer.set_context(self.context)
+        
+        # Bind methods
+        self.matches_known_pattern = self.pattern_recognizer.matches_known_pattern
+        self.apply_pattern_rewrite = self.pattern_recognizer.apply_pattern_rewrite
+        self.optimize_arithmetic_sequence = ArithmeticTranslator.optimize_arithmetic_sequence
 
-        optimized.append(instr)
-        i += 1
+    # --- Public Methods ---
 
-    return optimized
+    def optimize_instructions(self, instructions: list):
+        """
+        Main entry point for instruction optimization.
+        
+        Args:
+            instructions (list): List of parsed EVM instructions
+        Returns:
+            list: Optimized instruction list
+        """
+        logging.debug("Starting optimization pass...")
 
+        # Apply multiple optimization passes
+        optimized = instructions.copy()
 
-def eliminate_dead_code(instructions: list, context: Context):
-    """
-    Remove unreachable or unused instructions.
-    
-    Args:
-        instructions (list): EVM IR instructions
-        context (Context): Compilation context
-    Returns:
-        list: Optimized instruction list
-    """
-    logging.log("Eliminating dead code...")
-    optimized = []
+        optimized = self.perform_constant_folding(optimized)
+        optimized = self.eliminate_dead_code(optimized)
+        optimized = self.coalesce_operations(optimized)
+        optimized = self.reorder_instructions(optimized)
+        optimized = self.optimize_register_usage(optimized)
+        optimized = self.optimize_memory_access(optimized)
+        optimized = self.apply_peephole_optimizations(optimized)
 
-    for instr in instructions:
-        opcode = instr.get("opcode", "")
-        if opcode == "JUMPDEST":
-            optimized.append(instr)
-        elif opcode == "JUMP":
-            optimized.append(instr)
-            break  # Everything after JUMP is dead
-        else:
-            optimized.append(instr)
+        logging.debug(f"Optimization complete. Instructions reduced from {len(instructions)} → {len(optimized)}")
+        return optimized
 
-    return optimized
+    def perform_constant_folding(self, instructions: list):
+        """
+        Replace constant expressions with their computed values.
+        
+        Args:
+            instructions (list): EVM IR instructions
+        Returns:
+            list: Optimized instruction list
+        """
+        logging.debug("Performing constant folding...")
+        optimized = []
+        i = 0
+        while i < len(instructions):
+            instr = instructions[i]
 
-
-def coalesce_operations(instructions: list, context: Context):
-    """
-    Merge repeated operations into single instructions where possible.
-    
-    Args:
-        instructions (list): EVM IR instructions
-        context (Context): Compilation context
-    Returns:
-        list: Optimized instruction list
-    """
-    logging.log("Coalescing operations...")
-    optimized = []
-    i = 0
-    while i < len(instructions):
-        if i + 1 < len(instructions):
-            curr = instructions[i]
-            next_instr = instructions[i + 1]
-            if curr.get("opcode") == "ADD" and next_instr.get("opcode") == "ADD":
-                optimized.append({"opcode": "ADDMOD", "args": []})  # Example rewrite
-                i += 2
-                continue
-        optimized.append(instructions[i])
-        i += 1
-
-    return optimized
-
-
-def reorder_instructions(instructions: list, context: Context):
-    """
-    Reorder instructions to improve register allocation and execution flow.
-    
-    Args:
-        instructions (list): EVM IR instructions
-        context (Context): Compilation context
-    Returns:
-        list: Optimized instruction list
-    """
-    logging.log("Reordering instructions...")
-    # This is a placeholder; real reordering would use liveness analysis
-    return instructions.copy()
-
-
-def optimize_register_usage(instructions: list, context: Context):
-    """
-    Optimize register usage by analyzing live ranges and reuse opportunities.
-    
-    Args:
-        instructions (list): EVM IR instructions
-        context (Context): Compilation context
-    Returns:
-        list: Optimized instruction list
-    """
-    logging.log("Optimizing register usage...")
-    return instructions.copy()
-
-
-def optimize_memory_access(instructions: list, context: Context):
-    """
-    Optimize memory accesses by combining loads/stores or eliminating redundant ones.
-    
-    Args:
-        instructions (list): EVM IR instructions
-        context (Context): Compilation context
-    Returns:
-        list: Optimized instruction list
-    """
-    logging.log("Optimizing memory access...")
-    optimized = []
-    i = 0
-    while i < len(instructions):
-        if i + 1 < len(instructions):
-            curr = instructions[i]
-            next_instr = instructions[i + 1]
-            if curr.get("opcode") == "MSTORE" and next_instr.get("opcode") == "MLOAD":
-                offset1 = curr.get("offset", 0)
-                offset2 = next_instr.get("offset", 0)
-                if offset1 == offset2:
-                    # Skip redundant load after store
-                    optimized.append(curr)
+            if instr.get("opcode") in ["PUSH1", "PUSH2"] and i + 1 < len(instructions):
+                next_instr = instructions[i + 1]
+                if next_instr.get("opcode") in ["PUSH1", "PUSH2"]:
+                    # Push two constants in sequence
+                    val1 = int(instr["value"], 16)
+                    val2 = int(next_instr["value"], 16)
+                    result = val1 + val2
+                    optimized.append({"opcode": "PUSH1", "value": hex(result)})
                     i += 2
                     continue
-        optimized.append(instructions[i])
-        i += 1
 
-    return optimized
+            optimized.append(instr)
+            i += 1
 
+        return optimized
 
-def apply_peephole_optimizations(instructions: list, context: Context):
-    """
-    Perform peephole-style optimizations based on small instruction patterns.
-    
-    Args:
-        instructions (list): EVM IR instructions
-        context (Context): Compilation context
-    Returns:
-        list: Optimized instruction list
-    """
-    logging.log("Applying peephole optimizations...")
-    optimized = []
-    i = 0
-    while i < len(instructions):
-        if i + 1 < len(instructions):
-            curr = instructions[i]
-            next_instr = instructions[i + 1]
-            if curr.get("opcode") == "POP" and next_instr.get("opcode") == "POP":
-                optimized.append({"opcode": "DUP1"})
-                i += 2
-                continue
-        optimized.append(instructions[i])
-        i += 1
+    def eliminate_dead_code(self, instructions: list):
+        """
+        Remove unreachable or unused instructions.
+        
+        Args:
+            instructions (list): EVM IR instructions
+        Returns:
+            list: Optimized instruction list
+        """
+        logging.debug("Eliminating dead code...")
+        optimized = []
 
-    return optimized
+        for instr in instructions:
+            opcode = instr.get("opcode", "")
+            if opcode == "JUMPDEST":
+                optimized.append(instr)
+            elif opcode == "JUMP":
+                optimized.append(instr)
+                break  # Everything after JUMP is dead
+            else:
+                optimized.append(instr)
+
+        return optimized
+
+    def coalesce_operations(self, instructions: list):
+        """
+        Merge repeated operations into single instructions where possible.
+        
+        Args:
+            instructions (list): EVM IR instructions
+        Returns:
+            list: Optimized instruction list
+        """
+        logging.debug("Coalescing operations...")
+        optimized = []
+        i = 0
+        while i < len(instructions):
+            if i + 1 < len(instructions):
+                curr = instructions[i]
+                next_instr = instructions[i + 1]
+                if curr.get("opcode") == "ADD" and next_instr.get("opcode") == "ADD":
+                    optimized.append({"opcode": "ADDMOD", "args": []})  # Example rewrite
+                    i += 2
+                    continue
+            optimized.append(instructions[i])
+            i += 1
+
+        return optimized
+
+    def reorder_instructions(self, instructions: list):
+        """
+        Reorder instructions to improve register allocation and execution flow.
+        
+        Args:
+            instructions (list): EVM IR instructions
+        Returns:
+            list: Optimized instruction list
+        """
+        logging.debug("Reordering instructions...")
+        # This is a placeholder; real reordering would use liveness analysis
+        return instructions.copy()
+
+    def optimize_register_usage(self, instructions: list):
+        """
+        Optimize register usage by analyzing live ranges and reuse opportunities.
+        
+        Args:
+            instructions (list): EVM IR instructions
+        Returns:
+            list: Optimized instruction list
+        """
+        logging.log("Optimizing register usage...")
+        return instructions.copy()
+
+    def optimize_memory_access(self, instructions: list):
+        """
+        Optimize memory accesses by combining loads/stores or eliminating redundant ones.
+        
+        Args:
+            instructions (list): EVM IR instructions
+        Returns:
+            list: Optimized instruction list
+        """
+        logging.debug("Optimizing memory access...")
+        optimized = []
+        i = 0
+        while i < len(instructions):
+            if i + 1 < len(instructions):
+                curr = instructions[i]
+                next_instr = instructions[i + 1]
+                if curr.get("opcode") == "MSTORE" and next_instr.get("opcode") == "MLOAD":
+                    offset1 = curr.get("offset", 0)
+                    offset2 = next_instr.get("offset", 0)
+                    if offset1 == offset2:
+                        # Skip redundant load after store
+                        optimized.append(curr)
+                        i += 2
+                        continue
+            optimized.append(instructions[i])
+            i += 1
+
+        return optimized
+
+    def apply_peephole_optimizations(self, instructions: list):
+        """
+        Perform peephole-style optimizations based on small instruction patterns.
+        
+        Args:
+            instructions (list): EVM IR instructions
+        Returns:
+            list: Optimized instruction list
+        """
+        logging.debug("Applying peephole optimizations...")
+        optimized = []
+        i = 0
+        while i < len(instructions):
+            if i + 1 < len(instructions):
+                curr = instructions[i]
+                next_instr = instructions[i + 1]
+                if curr.get("opcode") == "POP" and next_instr.get("opcode") == "POP":
+                    optimized.append({"opcode": "DUP1"})
+                    i += 2
+                    continue
+            optimized.append(instructions[i])
+            i += 1
+
+        return optimized

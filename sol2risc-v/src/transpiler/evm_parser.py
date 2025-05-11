@@ -1,247 +1,282 @@
 # evm_parser.py - Parser for EVM assembly into intermediate representation
 
 import re
-from .context_manager import create_transpilation_context, update_context_for_instruction
-from .stack_emulator import calculate_stack_effect
-from .pattern import detect_patterns
 import logging
-from logging import log_instruction_processing, log_error
+from pprint import pformat
 import json
 
 
-def parse_evm_assembly(input_file: str):
+class EvmParser:
     """
-    Main entry point to parse EVM assembly file into structured IR.
+    Class responsible for parsing EVM assembly into structured IR.
     
-    Args:
-        input_file (str): Path to .asm file containing EVM assembly
-    Returns:
-        list[dict]: Parsed instruction list in IR format
+    Handles tokenization, validation, control flow graph construction,
+    jump resolution, function boundary detection, and stack effect analysis.
     """
-    logging.log(f"Parsing EVM assembly from {input_file}")
-    lines = _read_input_lines(input_file)
-    instructions = []
 
-    context = create_transpilation_context()
-    labels = {}
-    label_counter = 0
+    def __init__(self, context=None):
+        """Initialize EVM parser."""
+        self.context = context
+        if context is not None:
+            self._init_dependencies()
 
-    for line_num, line in enumerate(lines):
-        line = line.strip()
-        if not line or line.startswith(";"):
-            continue
+    def set_context(self, context):
+        """Set context after initialization."""
+        self.context = context
+        self._init_dependencies()
 
-        # Handle labels
-        if line.endswith(":"):
-            label_name = line[:-1].strip()
-            labels[label_name] = len(instructions)
-            instructions.append({
-                "type": "label",
-                "name": label_name,
-                "index": len(instructions),
-                "line": line_num
-            })
-            continue
+    def _init_dependencies(self):
+        """Initialize parser dependencies."""
+        from .stack_emulator import StackEmulator
+        from .context_manager import ContextManager
+        from .pattern import PatternRecognizer
+        
+        # Initialize stack emulator
+        self.stack_emulator = StackEmulator(self.context)
+        self.calculate_stack_effect = self.stack_emulator.calculate_stack_effect
+        
+        # Initialize other components
+        self.context_manager = ContextManager()
+        
+        # Create pattern recognizer instance correctly
+        self.pattern_recognizer = PatternRecognizer()
+        self.pattern_recognizer.set_context(self.context)
+        self.detect_patterns = self.pattern_recognizer.detect_patterns
+        
+        logging.debug("Parser dependencies initialized")
 
-        # Tokenize line into components
-        instr = tokenize_instruction(line)
-        if not instr:
-            log_error(f"Failed to parse line: {line}", {"line": line}, context)
-            continue
+    # --- Public Methods ---
 
-        # Add metadata
-        instr["line"] = line_num
-        instr["index"] = len(instructions)
+    def parse_evm_assembly(self, input_file: str):
+        """
+        Main entry point to parse EVM assembly file into structured IR.
+        
+        Args:
+            input_file (str): Path to .asm file containing EVM assembly
+        Returns:
+            dict: Parsed instruction list in IR format + metadata
+        """
+        logging.log(f"Parsing EVM assembly from {input_file}")
+        lines = self._read_input_lines(input_file)
+        instructions = []
 
-        # Validate instruction
-        if not validate_instruction(instr):
-            log_error(f"Invalid instruction: {instr}", instr, context)
-            continue
+        self.context = self.context_manager.create_transpilation_context()
+        self.labels = {}
+        self.label_counter = 0
 
-        # Track jump destinations
-        if instr["opcode"] == "JUMPDEST":
-            instr["jumpdest"] = True
+        for line_num, line in enumerate(lines):
+            line = line.strip()
+            if not line or line.startswith(";"):
+                continue
 
-        # Process using shared context
-        update_context_for_instruction(instr, context)
+            # Handle labels
+            if line.endswith(":"):
+                label_name = line[:-1].strip()
+                self.labels[label_name] = len(instructions)
+                instructions.append({
+                    "type": "label",
+                    "name": label_name,
+                    "index": len(instructions),
+                    "line": line_num
+                })
+                continue
 
-        # Append to instruction stream
-        instructions.append(instr)
+            # Tokenize line into components
+            instr = self.tokenize_instruction(line)
+            if not instr:
+                logging.log_error(f"Failed to parse line: {line}", {"line": line}, self.context)
+                continue
 
-    # Build CFG
-    cfg = build_control_flow_graph(instructions)
+            # Add metadata
+            instr["line"] = line_num
+            instr["index"] = len(instructions)
 
-    # Resolve jumps
-    resolve_jumps(instructions, labels)
+            # Validate instruction
+            if not self.validate_instruction(instr):
+                logging.log_error(f"Invalid instruction: {instr}", instr, self.context)
+                continue
 
-    # Detect function boundaries
-    function_boundaries = detect_function_boundaries(instructions)
+            # Track jump destinations
+            if instr["opcode"] == "JUMPDEST":
+                instr["jumpdest"] = True
 
-    # Analyze stack effects
-    analyze_stack_effects(instructions)
+            # Process using shared context
+            self.context_manager.update_context_for_instruction(instr, self.context)
 
-    logging.log(f"Parsed {len(instructions)} instructions")
-    return {
-        "instructions": instructions,
-        "cfg": cfg,
-        "functions": function_boundaries,
-        "labels": labels,
-        "context": context
-    }
+            # Append to instruction stream
+            instructions.append(instr)
 
+        # Build CFG
+        self.cfg = self.build_control_flow_graph(instructions)
 
-def _read_input_lines(input_file: str):
-    """Read input file line by line."""
-    try:
-        with open(input_file, 'r') as f:
-            return f.readlines()
-    except Exception as e:
-        log_error(f"Failed to read input file: {e}", {})
-        return []
+        # Resolve jumps
+        self.resolve_jumps(instructions, self.labels)
 
+        # Detect function boundaries
+        self.function_boundaries = self.detect_function_boundaries(instructions)
 
-def tokenize_instruction(line: str) -> dict:
-    """
-    Convert a single EVM assembly line into an instruction dictionary.
-    
-    Args:
-        line (str): Line of EVM assembly
-    Returns:
-        dict: Parsed instruction with opcode and args
-    """
-    parts = re.split(r'\s+', line.strip(), maxsplit=1)
-    if not parts:
-        return None
+        # Analyze stack effects
+        self.analyze_stack_effects(instructions)
 
-    opcode = parts[0].upper()
+        logging.log(f"Parsed {len(instructions)} instructions")
+        return {
+            "instructions": instructions,
+            "cfg": self.cfg,
+            "functions": self.function_boundaries,
+            "labels": self.labels,
+            "context": self.context
+        }
 
-    args = []
-    if len(parts) > 1:
-        args = [arg.strip() for arg in parts[1].split(",")]
+    # ---------------------------
+    # Internal Helpers
+    # ---------------------------
 
-    return {
-        "opcode": opcode,
-        "args": args,
-        "value": args[0] if len(args) == 1 else None
-    }
+    def _read_input_lines(self, input_file: str):
+        """Read input file line by line."""
+        try:
+            with open(input_file, 'r') as f:
+                return f.readlines()
+        except Exception as e:
+            logging.log_error(f"Failed to read input file: {e}", {})
+            return []
 
+    def tokenize_instruction(self, line: str) -> dict:
+        """
+        Convert a single EVM assembly line into an instruction dictionary.
+        
+        Args:
+            line (str): Line of EVM assembly
+        Returns:
+            dict: Parsed instruction with opcode and args
+        """
+        parts = re.split(r'\s+', line.strip(), maxsplit=1)
+        if not parts:
+            return None
 
-def validate_instruction(instruction: dict) -> bool:
-    """
-    Check if instruction conforms to expected format.
-    
-    Args:
-        instruction (dict): Instruction dictionary
-    Returns:
-        bool: True if valid
-    """
-    opcode = instruction.get("opcode", "")
-    args = instruction.get("args", [])
+        opcode = parts[0].upper()
 
-    if not opcode:
-        return False
+        args = []
+        if len(parts) > 1:
+            args = [arg.strip() for arg in parts[1].split(",")]
 
-    # Basic validation rules
-    if opcode.startswith("PUSH") and len(args) != 1:
-        return False
-    elif opcode.startswith("DUP") and len(args) != 0:
-        return False
-    elif opcode.startswith("SWAP") and len(args) != 0:
-        return False
-    elif opcode in ["JUMP", "JUMPI"] and len(args) != 0:
-        return False
+        return {
+            "opcode": opcode,
+            "args": args,
+            "value": args[0] if len(args) == 1 else None
+        }
 
-    return True
+    def validate_instruction(self, instruction: dict) -> bool:
+        """
+        Check if instruction conforms to expected format.
+        
+        Args:
+            instruction (dict): Instruction dictionary
+        Returns:
+            bool: True if valid
+        """
+        opcode = instruction.get("opcode", "")
+        args = instruction.get("args", [])
 
+        if not opcode:
+            return False
 
-def build_control_flow_graph(instructions: list) -> dict:
-    """
-    Build control flow graph from instruction stream.
-    
-    Args:
-        instructions (list): List of parsed instructions
-    Returns:
-        dict: Control flow graph
-    """
-    logging.log("Building control flow graph...")
-    cfg = {}
+        # Basic validation rules
+        if opcode.startswith("PUSH") and len(args) != 1:
+            return False
+        elif opcode.startswith("DUP") and len(args) != 0:
+            return False
+        elif opcode.startswith("SWAP") and len(args) != 0:
+            return False
+        elif opcode in ["JUMP", "JUMPI"] and len(args) != 0:
+            return False
 
-    for i, instr in enumerate(instructions):
-        opcode = instr.get("opcode", "")
-        if opcode in ["JUMP", "JUMPI"]:
-            cfg[i] = []
-        elif opcode == "JUMPDEST":
-            pass  # Start of new block
-        else:
-            cfg[i] = [i + 1] if i + 1 < len(instructions) else []
+        return True
 
-    # Connect JUMP destinations
-    for i, instr in enumerate(instructions):
-        opcode = instr.get("opcode", "")
-        if opcode == "JUMP":
-            target = instr.get("target_index")
-            if target is not None:
-                cfg[i].append(target)
-        elif opcode == "JUMPI":
-            target = instr.get("target_index")
-            if target is not None:
-                cfg[i].append(target)
+    def build_control_flow_graph(self, instructions: list) -> dict:
+        """
+        Build control flow graph from instruction stream.
+        
+        Args:
+            instructions (list): List of parsed instructions
+        Returns:
+            dict: Control flow graph
+        """
+        logging.log("Building control flow graph...")
+        cfg = {}
 
-    return cfg
-
-
-def resolve_jumps(instructions: list, labels: dict):
-    """
-    Resolve symbolic jump destinations.
-    
-    Args:
-        instructions (list): List of parsed instructions
-        labels (dict): Map of label names to instruction indices
-    """
-    logging.log("Resolving jump destinations...")
-    for instr in instructions:
-        if instr.get("opcode") in ["JUMP", "JUMPI"]:
-            target_label = instr.get("value", "").strip()
-            if target_label in labels:
-                instr["target_index"] = labels[target_label]
+        for i, instr in enumerate(instructions):
+            opcode = instr.get("opcode", "")
+            if opcode in ["JUMP", "JUMPI"]:
+                cfg[i] = []
+            elif opcode == "JUMPDEST":
+                pass  # Start of new block
             else:
-                instr["target_index"] = -1  # Unresolved
+                cfg[i] = [i + 1] if i + 1 < len(instructions) else []
 
+        # Connect JUMP destinations
+        for i, instr in enumerate(instructions):
+            opcode = instr.get("opcode", "")
+            if opcode == "JUMP":
+                target = instr.get("target_index")
+                if target is not None:
+                    cfg[i].append(target)
+            elif opcode == "JUMPI":
+                target = instr.get("target_index")
+                if target is not None:
+                    cfg[i].append(target)
 
-def detect_function_boundaries(instructions: list):
-    """
-    Identify likely function boundaries based on JUMPDEST usage.
-    
-    Args:
-        instructions (list): List of parsed instructions
-    Returns:
-        list: List of function boundary tuples (start, end)
-    """
-    logging.log("Detecting function boundaries...")
-    boundaries = []
-    start_idx = None
+        return cfg
 
-    for i, instr in enumerate(instructions):
-        if instr.get("opcode") == "JUMPDEST":
-            if start_idx is not None:
-                boundaries.append((start_idx, i))
-            start_idx = i
+    def resolve_jumps(self, instructions: list, labels: dict):
+        """
+        Resolve symbolic jump destinations.
+        
+        Args:
+            instructions (list): List of parsed instructions
+            labels (dict): Map of label names to instruction indices
+        """
+        logging.log("Resolving jump destinations...")
+        for instr in instructions:
+            if instr.get("opcode") in ["JUMP", "JUMPI"]:
+                target_label = instr.get("value", "").strip()
+                if target_label in labels:
+                    instr["target_index"] = labels[target_label]
+                else:
+                    instr["target_index"] = -1  # Unresolved
 
-    if start_idx is not None:
-        boundaries.append((start_idx, len(instructions)))
+    def detect_function_boundaries(self, instructions: list):
+        """
+        Identify likely function boundaries based on JUMPDEST usage.
+        
+        Args:
+            instructions (list): List of parsed instructions
+        Returns:
+            list: List of function boundary tuples (start, end)
+        """
+        logging.log("Detecting function boundaries...")
+        boundaries = []
+        start_idx = None
 
-    return boundaries
+        for i, instr in enumerate(instructions):
+            if instr.get("opcode") == "JUMPDEST":
+                if start_idx is not None:
+                    boundaries.append((start_idx, i))
+                start_idx = i
 
+        if start_idx is not None:
+            boundaries.append((start_idx, len(instructions)))
 
-def analyze_stack_effects(instructions: list):
-    """
-    Analyze and annotate each instruction with its stack effect.
-    
-    Args:
-        instructions (list): List of parsed instructions
-    """
-    logging.log("Analyzing stack effects...")
-    for instr in instructions:
-        opcode = instr.get("opcode", "")
-        delta = calculate_stack_effect(opcode)
-        instr["stack_effect"] = delta
+        return boundaries
+
+    def analyze_stack_effects(self, instructions: list):
+        """
+        Analyze and annotate each instruction with its stack effect.
+        
+        Args:
+            instructions (list): List of parsed instructions
+        """
+        logging.log("Analyzing stack effects...")
+        for instr in instructions:
+            opcode = instr.get("opcode", "")
+            delta = self.calculate_stack_effect(opcode)
+            instr["stack_effect"] = delta
