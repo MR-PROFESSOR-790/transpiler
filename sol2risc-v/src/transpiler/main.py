@@ -108,11 +108,26 @@ class TranspilerCLI:
             bool: True if valid
         """
         if not os.path.isfile(input_file):
-            print(f"Error: File '{input_file}' does not exist.")
+            logging.error(f"Error: File '{input_file}' does not exist.")
             return False
 
         if not input_file.endswith(".asm"):
-            print(f"Error: Input must be an .asm file")
+            logging.error(f"Error: Input must be an .asm file")
+            return False
+            
+        # Check if file is empty
+        if os.path.getsize(input_file) == 0:
+            logging.error(f"Error: File '{input_file}' is empty.")
+            return False
+
+        try:
+            with open(input_file, 'r') as f:
+                content = f.read().strip()
+                if not content:
+                    logging.error(f"Error: File '{input_file}' contains no EVM assembly instructions.")
+                    return False
+        except Exception as e:
+            logging.error(f"Error reading file '{input_file}': {str(e)}")
             return False
 
         return True
@@ -144,14 +159,35 @@ class TranspilerCLI:
 
         try:
             # Step 1: Parse EVM Assembly
+            logging.debug(f"Reading input file: {input_file}")
+            with open(input_file, 'r') as f:
+                content = f.read()
+            logging.debug(f"File contents:\n{content}")
+            
             logging.info(f"Parsing EVM assembly from {input_file}")
-            parse_result = self.parser.parse_evm_assembly(input_file)
+            try:
+                parse_result = self.parser.parse_evm_assembly(input_file)
+                logging.debug(f"Parse result: {parse_result}")
+                
+                if not parse_result:
+                    logging.error("Parser returned None")
+                    stats["error"] = "Parser returned None"
+                    return stats
+                    
+                if not parse_result.get("instructions"):
+                    logging.error("No instructions found in parse result")
+                    stats["error"] = "No instructions parsed"
+                    logging.debug(f"Full parse result: {parse_result}")
+                    return stats
 
-            if not parse_result or not parse_result.get("instructions"):
-                logging.error("Failed to parse EVM assembly")
+                instructions = parse_result["instructions"]
+                logging.debug(f"Parsed {len(instructions)} instructions")
+                
+            except Exception as e:
+                logging.error(f"Parser error: {str(e)}")
+                stats["error"] = f"Parser error: {str(e)}"
                 return stats
 
-            instructions = parse_result["instructions"]
             labels = parse_result.get("labels", {})
             context = parse_result.get("context", self.context)  # Use parsed context if available
 
