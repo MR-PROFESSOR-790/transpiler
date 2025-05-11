@@ -13,8 +13,18 @@ class CompilationContext:
 
     def __init__(self):
         # Core context data structures
-        self.stack = {}
-        self.memory = {}
+        self.stack = {
+            "size": 0,
+            "max_size": 0,
+            "history": [],
+            "spill_offsets": {}
+        }
+        self.memory = {
+            "base": "MEM_BASE",
+            "size": 0,
+            "allocated": {},
+            "last_used": 0
+        }
         self.storage = {}
         self.gas_meter = {
             "total": 0,
@@ -35,37 +45,81 @@ class CompilationContext:
         self.labels = {}
         self.source_map = {}
         self.optimizations = []
+        self.unknown_opcodes = set()
+        self.invalid_opcodes = set()
+        self.warnings = []
+        self.errors = []
+        self.debug_info = {}
 
-        # Lazy-load internal dependencies
+        # First initialize dependencies
         self._init_dependencies()
 
-        # Initialize sub-models
-        self.initialize_stack_model()  # Remove self parameter
-        self.initialize_memory_model()  # Remove self parameter
+        # Then initialize models using the bound methods
+        try:
+            if hasattr(self, 'initialize_stack_model'):
+                self.initialize_stack_model()
+            if hasattr(self, 'initialize_memory_model'):
+                self.initialize_memory_model()
+        except Exception as e:
+            logging.error(f"Error during context initialization: {e}")
+            raise
 
         logging.debug("Compilation context initialized")
 
     def _init_dependencies(self):
         """Lazy-load dependencies to prevent circular import issues."""
-        from .stack_emulator import StackEmulator
-        from .memory_model import MemoryModel
-        from .gas_costs import GasCostCalculator
+        try:
+            from .stack_emulator import StackEmulator
+            from .memory_model import MemoryModel
+            from .gas_costs import GasCostCalculator
 
-        # Create and initialize dependencies
-        self.stack_emulator = StackEmulator(self)
-        self.memory_model = MemoryModel(self)
-        self.gas_calculator = GasCostCalculator()
-        self.gas_calculator.set_context(self)
+            # Create instances with proper initialization
+            self.stack_emulator = StackEmulator(self)
+            self.memory_model = MemoryModel()  # Initialize without context first
+            self.memory_model.context = self   # Then set context
+            self.gas_calculator = GasCostCalculator()
+            self.gas_calculator.set_context(self)
 
-        # Bind all required methods
-        self.initialize_stack_model = self.stack_emulator.initialize_stack_model
-        self.simulate_instruction_stack_effect = self.stack_emulator.simulate_instruction_stack_effect
-        self.initialize_memory_model = self.memory_model.initialize_memory_model
-        self.calculate_gas_cost = self.gas_calculator.calculate_gas_cost
-        self.track_gas_usage = self.gas_calculator.track_gas_usage
-        self.emit_runtime_call = self.gas_calculator.emit_runtime_call
+            # Bind methods - moved before any initialization calls
+            self.initialize_stack_model = self.stack_emulator.initialize_stack_model
+            self.simulate_instruction_stack_effect = self.stack_emulator.simulate_instruction_stack_effect
+            self.initialize_memory_model = self.memory_model.initialize_memory_model
+            self.calculate_gas_cost = self.gas_calculator.calculate_gas_cost
+            self.track_gas_usage = self.gas_calculator.track_gas_usage
+            self.emit_runtime_call = self.gas_calculator.emit_runtime_call
 
-        logging.debug("Dependencies initialized")
+            logging.debug("Dependencies initialized successfully")
+        except ImportError as e:
+            logging.error(f"Failed to import required modules: {e}")
+            self._fallback_stack_init()
+            self._fallback_memory_init()
+            raise
+        except Exception as e:
+            logging.error(f"Error during dependency initialization: {e}")
+            self._fallback_stack_init()
+            self._fallback_memory_init()
+            raise
+
+    # Add fallback initialization methods
+    def _fallback_stack_init(self):
+        """Fallback stack initialization if StackEmulator fails to load"""
+        self.stack = {
+            "size": 0,
+            "max_size": 0,
+            "history": [],
+            "spill_offsets": {}
+        }
+        logging.warning("Using fallback stack initialization")
+
+    def _fallback_memory_init(self):
+        """Fallback memory initialization if MemoryModel fails to load"""
+        self.memory = {
+            "base": "MEM_BASE",
+            "size": 0,
+            "allocated": {},
+            "last_used": 0
+        }
+        logging.warning("Using fallback memory initialization")
 
     def update_context_for_instruction(self, instruction):
         """
@@ -85,7 +139,7 @@ class CompilationContext:
         # Simulate stack effect
         success = self.simulate_instruction_stack_effect(instruction, self.stack)
         if not success:
-            logging.error(f"Stack inconsistency in instruction: {opcode}")  # Fix logging call
+            logging.error(f"Stack inconsistency in instruction: {opcode}")
 
         # Calculate and track gas cost
         gas_cost = self.calculate_gas_cost(opcode, self)
@@ -94,7 +148,7 @@ class CompilationContext:
         breakdown[opcode] = breakdown.get(opcode, 0) + gas_cost
 
         # Optional: track memory expansion, storage access, etc.
-        logging.debug(f"Processing instruction: {instruction}")  # Fix logging call
+        logging.debug(f"Processing instruction: {instruction}")
 
     def get_current_stack_state(self):
         """
@@ -149,6 +203,69 @@ class CompilationContext:
             str: Current scope name
         """
         return self.function_info.get("scope", "unknown")
+
+    def add_unknown_opcode(self, opcode, offset):
+        """Add an unknown opcode to tracking."""
+        self.unknown_opcodes.add((opcode, offset))
+        self.warnings.append(f"Unknown opcode at offset {offset}: {opcode}")
+
+    def add_invalid_opcode(self, opcode, offset):
+        """Add an invalid opcode to tracking."""
+        self.invalid_opcodes.add((opcode, offset))
+        self.errors.append(f"Invalid opcode at offset {offset}: {opcode}")
+
+    def add_warning(self, warning):
+        """Add a warning message."""
+        self.warnings.append(warning)
+
+    def add_error(self, error):
+        """Add an error message."""
+        self.errors.append(error)
+
+    def get_unknown_opcodes(self):
+        """Get set of unknown opcodes encountered."""
+        return self.unknown_opcodes
+
+    def get_invalid_opcodes(self):
+        """Get set of invalid opcodes encountered."""
+        return self.invalid_opcodes
+
+    def get_warnings(self):
+        """Get list of warnings generated."""
+        return self.warnings
+
+    def get_errors(self):
+        """Get list of errors generated."""
+        return self.errors
+
+    def generate_debug_info(self, instructions):
+        """Generate debug information for the compilation."""
+        self.debug_info = {
+            "instructions": [str(instr) for instr in instructions],
+            "unknown_opcodes": list(self.unknown_opcodes),
+            "invalid_opcodes": list(self.invalid_opcodes),
+            "warnings": self.warnings,
+            "errors": self.errors,
+            "stack_depth": self.stack_emulator.max_depth,
+            "memory_usage": self.memory_model.get_usage(),
+            "gas_usage": self.gas_meter["total"]
+        }
+        return self.debug_info
+
+    def create_source_map(self, evm_instructions, riscv_instructions):
+        """Create mapping between EVM and RISC-V instructions."""
+        self.source_map = {
+            "evm_to_riscv": {},
+            "riscv_to_evm": {}
+        }
+        
+        # Map EVM instructions to RISC-V instructions
+        for i, evm_instr in enumerate(evm_instructions):
+            if i < len(riscv_instructions):
+                self.source_map["evm_to_riscv"][str(evm_instr)] = riscv_instructions[i]
+                self.source_map["riscv_to_evm"][riscv_instructions[i]] = str(evm_instr)
+        
+        return self.source_map
 
 
 class ContextManager:

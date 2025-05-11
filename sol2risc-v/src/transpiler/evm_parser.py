@@ -56,7 +56,7 @@ class EvmParser:
         Returns:
             dict: Parsed instruction list in IR format + metadata
         """
-        logging.log(f"Parsing EVM assembly from {input_file}")
+        logging.info(f"Parsing EVM assembly from {input_file}")
         lines = self._read_input_lines(input_file)
         instructions = []
 
@@ -84,7 +84,7 @@ class EvmParser:
             # Tokenize line into components
             instr = self.tokenize_instruction(line)
             if not instr:
-                logging.log_error(f"Failed to parse line: {line}", {"line": line}, self.context)
+                logging.error(f"Failed to parse line: {line}")
                 continue
 
             # Add metadata
@@ -93,7 +93,7 @@ class EvmParser:
 
             # Validate instruction
             if not self.validate_instruction(instr):
-                logging.log_error(f"Invalid instruction: {instr}", instr, self.context)
+                logging.error(f"Invalid instruction: {instr}")
                 continue
 
             # Track jump destinations
@@ -118,7 +118,7 @@ class EvmParser:
         # Analyze stack effects
         self.analyze_stack_effects(instructions)
 
-        logging.log(f"Parsed {len(instructions)} instructions")
+        logging.info(f"Parsed {len(instructions)} instructions")
         return {
             "instructions": instructions,
             "cfg": self.cfg,
@@ -137,7 +137,7 @@ class EvmParser:
             with open(input_file, 'r') as f:
                 return f.readlines()
         except Exception as e:
-            logging.log_error(f"Failed to read input file: {e}", {})
+            logging.error(f"Failed to read input file: {e}")
             return []
 
     def tokenize_instruction(self, line: str) -> dict:
@@ -201,7 +201,7 @@ class EvmParser:
         Returns:
             dict: Control flow graph
         """
-        logging.log("Building control flow graph...")
+        logging.info("Building control flow graph...")
         cfg = {}
 
         for i, instr in enumerate(instructions):
@@ -235,7 +235,7 @@ class EvmParser:
             instructions (list): List of parsed instructions
             labels (dict): Map of label names to instruction indices
         """
-        logging.log("Resolving jump destinations...")
+        logging.info("Resolving jump destinations...")
         for instr in instructions:
             if instr.get("opcode") in ["JUMP", "JUMPI"]:
                 target_label = instr.get("value", "").strip()
@@ -253,7 +253,7 @@ class EvmParser:
         Returns:
             list: List of function boundary tuples (start, end)
         """
-        logging.log("Detecting function boundaries...")
+        logging.info("Detecting function boundaries...")
         boundaries = []
         start_idx = None
 
@@ -275,7 +275,7 @@ class EvmParser:
         Args:
             instructions (list): List of parsed instructions
         """
-        logging.log("Analyzing stack effects...")
+        logging.info("Analyzing stack effects...")
         for instr in instructions:
             opcode = instr.get("opcode", "")
             delta = self.calculate_stack_effect(opcode)

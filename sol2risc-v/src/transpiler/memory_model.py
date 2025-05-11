@@ -10,28 +10,154 @@ class MemoryModel:
     Handles memory allocation, MLOAD/MSTORE operations, and gas cost calculation.
     """
 
-    def __init__(self, context):
-        """
-        Initialize memory model with shared compilation context.
-
-        Args:
-            context (Context): Shared state object
-        """
+    def __init__(self, context=None):
+        self.memory = bytearray()
+        self.max_size = 0
+        self.current_opcode = None
+        self.warnings = []
+        self.errors = []
         self.context = context
-        self.initialize_memory_model()
-
+        if context:
+            self.set_context(context)
+            
     def initialize_memory_model(self):
+        """Initialize internal memory model state."""
+        self.memory = bytearray()  # Reset memory
+        self.max_size = 0
+        self.current_opcode = None
+        logging.info("Memory model initialized")
+
+    def set_context(self, context):
+        """Set compilation context."""
+        self.context = context
+
+    def set_current_opcode(self, opcode):
+        """Set the current opcode being processed."""
+        self.current_opcode = opcode
+        if self.context:
+            self.context.current_opcode = opcode
+
+    def expand(self, size):
         """
-        Initialize the memory subsystem within the compilation context.
+        Expand memory to at least the given size.
+        
+        Args:
+            size (int): Minimum size required
+        Returns:
+            bool: True if successful
         """
-        if not hasattr(self.context, "memory"):
-            self.context.memory = {
-                "base": "MEM_BASE",  # Symbolic constant defined in runtime.s
-                "size": 0,
-                "allocated": {},     # Map offset -> value (for testing/debugging)
-                "last_used": 0
-            }
-        logging.debug("Memory model initialized")
+        if size > self.max_size:
+            self.max_size = size
+            if self.context:
+                self.context.memory_size = size
+        return True
+
+    def write(self, offset, data):
+        """
+        Write data to memory at the given offset.
+        
+        Args:
+            offset (int): Memory offset
+            data (bytes): Data to write
+        Returns:
+            bool: True if successful
+        """
+        try:
+            # Expand memory if needed
+            required_size = offset + len(data)
+            if not self.expand(required_size):
+                return False
+
+            # Write data
+            while len(self.memory) < required_size:
+                self.memory.append(0)
+            self.memory[offset:offset + len(data)] = data
+
+            if self.context:
+                self.context.memory_writes.append({
+                    "offset": offset,
+                    "size": len(data),
+                    "opcode": self.current_opcode
+                })
+
+            return True
+        except Exception as e:
+            error = f"Memory write error: {str(e)}"
+            self.errors.append(error)
+            if self.context:
+                self.context.add_error(error)
+            return False
+
+    def read(self, offset, size):
+        """
+        Read data from memory at the given offset.
+        
+        Args:
+            offset (int): Memory offset
+            size (int): Number of bytes to read
+        Returns:
+            bytes: Read data or None on error
+        """
+        try:
+            # Check bounds
+            if offset + size > len(self.memory):
+                error = f"Memory read out of bounds: offset={offset}, size={size}"
+                self.errors.append(error)
+                if self.context:
+                    self.context.add_error(error)
+                return None
+
+            # Read data
+            data = bytes(self.memory[offset:offset + size])
+
+            if self.context:
+                self.context.memory_reads.append({
+                    "offset": offset,
+                    "size": size,
+                    "opcode": self.current_opcode
+                })
+
+            return data
+        except Exception as e:
+            error = f"Memory read error: {str(e)}"
+            self.errors.append(error)
+            if self.context:
+                self.context.add_error(error)
+            return None
+
+    def get_memory_state(self):
+        """Get current memory state."""
+        return {
+            "size": len(self.memory),
+            "max_size": self.max_size,
+            "current_opcode": self.current_opcode,
+            "warnings": self.warnings,
+            "errors": self.errors
+        }
+
+    def clear(self):
+        """Clear memory and reset state."""
+        self.memory = bytearray()
+        self.max_size = 0
+        self.current_opcode = None
+        self.warnings = []
+        self.errors = []
+        if self.context:
+            self.context.memory_size = 0
+            self.context.current_opcode = None
+            self.context.memory_writes = []
+            self.context.memory_reads = []
+
+    def track_memory_usage(self, opcode):
+        """
+        Track memory usage for an opcode.
+        
+        Args:
+            opcode (str): EVM opcode
+        """
+        if self.context:
+            self.context.memory_usage[opcode] = len(self.memory)
+            self.context.max_memory_size = max(self.context.max_memory_size, len(self.memory))
 
     def mload_operation(self, offset: int):
         """

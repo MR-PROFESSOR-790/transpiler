@@ -16,6 +16,7 @@ class InstructionOptimizer:
         Initialize optimizer with optional context.
         """
         self.context = None
+        self.pattern_recognizer = None
 
     def set_context(self, context):
         """
@@ -173,7 +174,7 @@ class InstructionOptimizer:
         Returns:
             list: Optimized instruction list
         """
-        logging.log("Optimizing register usage...")
+        logging.debug("Optimizing register usage...")
         return instructions.copy()
 
     def optimize_memory_access(self, instructions: list):
