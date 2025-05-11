@@ -1,66 +1,41 @@
 # stack_emulator.py - Stack emulation for EVM-to-RISC-V transpiler
 
+import re
 import logging
 
 
 class StackEmulator:
     """
     Class responsible for simulating the EVM stack and tracking its effects.
-    
-    Provides push/pop, DUP/SWAP handling, stack effect calculation,
-    and consistency validation across instructions.
     """
 
     MAX_EVM_STACK_SIZE = 1024  # Maximum allowed stack size per EVM spec
 
-    def __init__(self, context):
-        """
-        Initialize stack emulator with shared compilation context.
-
-        Args:
-            context (object): Shared state object (e.g., Context)
-        """
+    def __init__(self, context=None):
         self.context = context
         self.initialize_stack_model()
         self.initialize_memory_model()
-    
+
     def initialize_memory_model(self):
-        """
-        Initialize the memory model within the compilation context.
-        """
         if not hasattr(self.context, "memory"):
             self.context.memory = {
-                "base": "MEM_BASE",  # Symbolic constant defined in runtime.s
+                "base": "MEM_BASE",
                 "size": 0,
-                "allocated": {},     # Map offset -> value (for testing/debugging)
+                "allocated": {},
                 "last_used": 0
             }
         logging.debug("Memory model initialized")
 
     def initialize_stack_model(self):
-        """
-        Initialize the stack simulation within the compilation context.
-        """
-        self.context.stack_height = 0
         if not hasattr(self.context, "stack"):
             self.context.stack = {
                 "size": 0,
-                "max_size": 0,
                 "history": [],
-                "spill_offsets": {}  # Used by register allocator
+                "max_size": 0
             }
         logging.debug("Stack model initialized")
 
     def push_value(self, value, stack_state=None):
-        """
-        Push a value onto the simulated stack.
-        
-        Args:
-            value: Value to push
-            stack_state (dict): Optional custom stack state
-        Returns:
-            bool: True if successful, False on overflow
-        """
         if stack_state is None:
             stack_state = self.context.stack
 
@@ -75,14 +50,6 @@ class StackEmulator:
         return True
 
     def pop_value(self, stack_state=None):
-        """
-        Pop a value from the simulated stack.
-        
-        Args:
-            stack_state (dict): Current stack state
-        Returns:
-            any: Popped value or None on underflow
-        """
         if stack_state is None:
             stack_state = self.context.stack
 
@@ -95,68 +62,13 @@ class StackEmulator:
         logging.debug(f"Popped value {value}, new stack size: {stack_state['size']}")
         return value
 
-    def dup_value(self, position: int, stack_state=None):
-        """
-        Duplicate the value at the given position (DUP1 to DUP16).
-        
-        Args:
-            position (int): 1-based index of item to duplicate
-            stack_state (dict): Current stack state
-        Returns:
-            bool: True if successful
-        """
-        if stack_state is None:
-            stack_state = self.context.stack
-
-        if position < 1 or position > 16:
-            logging.error("Invalid DUP position")
-            return False
-
-        if stack_state["size"] < position:
-            logging.error(f"Not enough elements to DUP{position}")
-            return False
-
-        val = stack_state["history"][-position]
-        return self.push_value(val, stack_state)
-
-    def swap_values(self, position: int, stack_state=None):
-        """
-        Swap top of stack with the value at the given position (SWAP1 to SWAP16).
-        
-        Args:
-            position (int): 1-based index of item to swap with top
-            stack_state (dict): Current stack state
-        Returns:
-            bool: True if successful
-        """
-        if stack_state is None:
-            stack_state = self.context.stack
-
-        if position < 1 or position > 16:
-            logging.error("Invalid SWAP position")
-            return False
-
-        if stack_state["size"] < position + 1:
-            logging.error(f"Not enough elements to SWAP{position}")
-            return False
-
-        top = stack_state["history"][-1]
-        target = stack_state["history"][-(position + 1)]
-
-        stack_state["history"][-1] = target
-        stack_state["history"][-(position + 1)] = top
-
-        return True
-
     def calculate_stack_effect(self, opcode: str) -> int:
         """
-        Calculate net effect of an opcode on the stack.
-        
-        Args:
-            opcode (str): EVM instruction name
-        Returns:
-            int: Net change in stack size
+        Calculate net change in stack size for a given EVM opcode.
+        Uses internal mapping and handles PUSH/DUP/SWAP/LOG patterns.
         """
+        base_opcode = re.split(r'\s|:', opcode)[0].upper()
+
         stack_effects = {
             "STOP": 0,
             "ADD": -1,
@@ -169,33 +81,38 @@ class StackEmulator:
             "ADDMOD": -2,
             "MULMOD": -2,
             "EXP": -1,
-
             "LT": -1,
             "GT": -1,
             "SLT": -1,
             "SGT": -1,
             "EQ": -1,
-
+            "ISZERO": -1,
             "AND": -1,
             "OR": -1,
             "XOR": -1,
             "NOT": 0,
             "BYTE": -1,
-
-            "CALLDATALOAD": 0,
-            "CALLDATACOPY": -2,
+            "SHL": -1,
+            "SHR": -1,
+            "SAR": -1,
+            "SHA3": -1,
+            "TIMESTAMP": +1,
+            "MSIZE": +1,
             "CODECOPY": -2,
-
+            "CALLVALUE": +1,
             "POP": -1,
             "MLOAD": 0,
             "MSTORE": -2,
             "MSTORE8": -2,
+            "SLOAD": 0,
+            "SSTORE": -2,
             "JUMP": -1,
             "JUMPI": -2,
             "PC": +1,
             "MSIZE": +1,
             "GAS": +1,
-
+            "JUMPDEST": 0,
+            "PUSH0": +1,
             "PUSH1": +1,
             "PUSH2": +1,
             "PUSH3": +1,
@@ -228,7 +145,6 @@ class StackEmulator:
             "PUSH30": +1,
             "PUSH31": +1,
             "PUSH32": +1,
-
             "DUP1": +1,
             "DUP2": +1,
             "DUP3": +1,
@@ -245,7 +161,6 @@ class StackEmulator:
             "DUP14": +1,
             "DUP15": +1,
             "DUP16": +1,
-
             "SWAP1": 0,
             "SWAP2": 0,
             "SWAP3": 0,
@@ -262,30 +177,67 @@ class StackEmulator:
             "SWAP14": 0,
             "SWAP15": 0,
             "SWAP16": 0,
-
             "LOG0": -2,
             "LOG1": -3,
             "LOG2": -4,
             "LOG3": -5,
             "LOG4": -6,
-
             "CREATE": -3,
             "CALL": -7,
             "CALLCODE": -7,
             "DELEGATECALL": -6,
             "STATICCALL": -6,
-
             "RETURN": -2,
             "REVERT": -2,
             "SELFDESTRUCT": -1,
-            "INVALID": 0
+            "INVALID": 0,
+            "CALLVALUE": +1,
+            "CALLDATASIZE": +1,
+            "CALLDATACOPY": -2,
+            "CODESIZE": +1,
+            "CODECOPY": -2,
+            "TIMESTAMP": +1,
+            "NUMBER": +1,
+            "DIFFICULTY": +1,
+            "GASLIMIT": +1,
+            "CHAINID": +1,
+            "SELFBALANCE": +1,
+            "BASEFEE": +1,
+            "COINBASE": +1,
+            "ADDRESS": +1,
+            "BALANCE": +1,
+            "ORIGIN": +1,
+            "CALLER": +1,
+            "CALLDATALOAD": 0,
+            "CALLDATACOPY": -2,
+            "RETURNDATASIZE": +1,
+            "RETURNDATACOPY": -2,
+            "EXTCODESIZE": +1,
+            "EXTCODECOPY": -2,
+            "EXTCODEHASH": +1,
+            "BLOCKHASH": +1,
+            
         }
 
-        return stack_effects.get(opcode, 0)
+        # Handle numbered opcodes via pattern matching
+        if base_opcode.startswith("PUSH") and base_opcode != "PUSH0":
+            return +1
+        elif base_opcode.startswith("DUP"):
+            return +1
+        elif base_opcode.startswith("SWAP"):
+            return 0
+        elif base_opcode.startswith("LOG"):
+            try:
+                n = int(base_opcode[3:])
+                return -(n + 2)
+            except ValueError:
+                pass
+
+        return stack_effects.get(base_opcode, 0)
 
     def simulate_instruction_stack_effect(self, instruction: dict, stack_state=None):
         """
-        Apply the stack effect of a single instruction.
+        Simulate how this instruction affects the stack.
         
         Args:
             instruction (dict): EVM instruction
@@ -296,7 +248,7 @@ class StackEmulator:
         if stack_state is None:
             stack_state = self.context.stack
 
-        opcode = instruction.get("opcode", "")
+        opcode = instruction.get("opcode", "").upper()
         delta = self.calculate_stack_effect(opcode)
 
         if delta > 0:
@@ -321,8 +273,10 @@ class StackEmulator:
         """
         stack_depth = 0
         for idx, instr in enumerate(instructions):
-            opcode = instr.get("opcode", "")
+            if instr.get("type") == "label":
+                continue
 
+            opcode = instr.get("opcode", "").upper()
             delta = self.calculate_stack_effect(opcode)
             stack_depth += delta
 
@@ -339,7 +293,3 @@ class StackEmulator:
 
         logging.debug("Stack consistency check passed")
         return True
-
-
-# Make it available at module level
-__all__ = ['StackEmulator']
