@@ -25,13 +25,16 @@ jal ra, deduct_gas
 # PUSH 80
 li a0, 6
 jal ra, deduct_gas
-li t0, 80            # Load value
 slli t1, s3, 5          # Stack offset = s3 * 32
 add  t1, s2, t1         # Address = stack base + offset
-sd   t0, 0(t1)          # Store limb0
-sd   zero, 8(t1)        # limb1 = 0
-sd   zero, 16(t1)       # limb2 = 0
-sd   zero, 24(t1)       # limb3 = 0
+li t0, 0x0000000000000080       # Limb 0 (lowest 64 bits)
+sd t0, 0(t1)
+li t0, 0x0000000000000000       # Limb 1
+sd t0, 8(t1)
+li t0, 0x0000000000000000       # Limb 2
+sd t0, 16(t1)
+li t0, 0x0000000000000000       # Limb 3 (highest bits)
+sd t0, 24(t1)
 addi s3, s3, 1          # Increment stack pointer
 # PUSH1 40
 li a0, 6
@@ -39,13 +42,16 @@ jal ra, deduct_gas
 # PUSH 40
 li a0, 6
 jal ra, deduct_gas
-li t0, 40            # Load value
 slli t1, s3, 5          # Stack offset = s3 * 32
 add  t1, s2, t1         # Address = stack base + offset
-sd   t0, 0(t1)          # Store limb0
-sd   zero, 8(t1)        # limb1 = 0
-sd   zero, 16(t1)       # limb2 = 0
-sd   zero, 24(t1)       # limb3 = 0
+li t0, 0x0000000000000040       # Limb 0 (lowest 64 bits)
+sd t0, 0(t1)
+li t0, 0x0000000000000000       # Limb 1
+sd t0, 8(t1)
+li t0, 0x0000000000000000       # Limb 2
+sd t0, 16(t1)
+li t0, 0x0000000000000000       # Limb 3 (highest bits)
+sd t0, 24(t1)
 addi s3, s3, 1          # Increment stack pointer
 # MSTORE 
 li a0, 3
@@ -120,13 +126,16 @@ jal ra, deduct_gas
 # PUSH 0e
 li a0, 6
 jal ra, deduct_gas
-li t0, 0e            # Load value
 slli t1, s3, 5          # Stack offset = s3 * 32
 add  t1, s2, t1         # Address = stack base + offset
-sd   t0, 0(t1)          # Store limb0
-sd   zero, 8(t1)        # limb1 = 0
-sd   zero, 16(t1)       # limb2 = 0
-sd   zero, 24(t1)       # limb3 = 0
+li t0, 0x000000000000000e       # Limb 0 (lowest 64 bits)
+sd t0, 0(t1)
+li t0, 0x0000000000000000       # Limb 1
+sd t0, 8(t1)
+li t0, 0x0000000000000000       # Limb 2
+sd t0, 16(t1)
+li t0, 0x0000000000000000       # Limb 3 (highest bits)
+sd t0, 24(t1)
 addi s3, s3, 1          # Increment stack pointer
 # JUMPI 
 li a0, 10
@@ -150,13 +159,16 @@ jal ra, deduct_gas
 # PUSH 0
 li a0, 6
 jal ra, deduct_gas
-li t0, 0            # Load value
 slli t1, s3, 5          # Stack offset = s3 * 32
 add  t1, s2, t1         # Address = stack base + offset
-sd   t0, 0(t1)          # Store limb0
-sd   zero, 8(t1)        # limb1 = 0
-sd   zero, 16(t1)       # limb2 = 0
-sd   zero, 24(t1)       # limb3 = 0
+li t0, 0x0000000000000000       # Limb 0 (lowest 64 bits)
+sd t0, 0(t1)
+li t0, 0x0000000000000000       # Limb 1
+sd t0, 8(t1)
+li t0, 0x0000000000000000       # Limb 2
+sd t0, 16(t1)
+li t0, 0x0000000000000000       # Limb 3 (highest bits)
+sd t0, 24(t1)
 addi s3, s3, 1          # Increment stack pointer
 # DUP1 
 li a0, 4
@@ -199,13 +211,16 @@ jal ra, deduct_gas
 # PUSH 3e
 li a0, 6
 jal ra, deduct_gas
-li t0, 3e            # Load value
 slli t1, s3, 5          # Stack offset = s3 * 32
 add  t1, s2, t1         # Address = stack base + offset
-sd   t0, 0(t1)          # Store limb0
-sd   zero, 8(t1)        # limb1 = 0
-sd   zero, 16(t1)       # limb2 = 0
-sd   zero, 24(t1)       # limb3 = 0
+li t0, 0x000000000000003e       # Limb 0 (lowest 64 bits)
+sd t0, 0(t1)
+li t0, 0x0000000000000000       # Limb 1
+sd t0, 8(t1)
+li t0, 0x0000000000000000       # Limb 2
+sd t0, 16(t1)
+li t0, 0x0000000000000000       # Limb 3 (highest bits)
+sd t0, 24(t1)
 addi s3, s3, 1          # Increment stack pointer
 # DUP1 
 li a0, 4
@@ -231,13 +246,16 @@ jal ra, deduct_gas
 # PUSH 1a
 li a0, 6
 jal ra, deduct_gas
-li t0, 1a            # Load value
 slli t1, s3, 5          # Stack offset = s3 * 32
 add  t1, s2, t1         # Address = stack base + offset
-sd   t0, 0(t1)          # Store limb0
-sd   zero, 8(t1)        # limb1 = 0
-sd   zero, 16(t1)       # limb2 = 0
-sd   zero, 24(t1)       # limb3 = 0
+li t0, 0x000000000000001a       # Limb 0 (lowest 64 bits)
+sd t0, 0(t1)
+li t0, 0x0000000000000000       # Limb 1
+sd t0, 8(t1)
+li t0, 0x0000000000000000       # Limb 2
+sd t0, 16(t1)
+li t0, 0x0000000000000000       # Limb 3 (highest bits)
+sd t0, 24(t1)
 addi s3, s3, 1          # Increment stack pointer
 # PUSH0 
 li a0, 3
@@ -245,13 +263,16 @@ jal ra, deduct_gas
 # PUSH 0
 li a0, 6
 jal ra, deduct_gas
-li t0, 0            # Load value
 slli t1, s3, 5          # Stack offset = s3 * 32
 add  t1, s2, t1         # Address = stack base + offset
-sd   t0, 0(t1)          # Store limb0
-sd   zero, 8(t1)        # limb1 = 0
-sd   zero, 16(t1)       # limb2 = 0
-sd   zero, 24(t1)       # limb3 = 0
+li t0, 0x0000000000000000       # Limb 0 (lowest 64 bits)
+sd t0, 0(t1)
+li t0, 0x0000000000000000       # Limb 1
+sd t0, 8(t1)
+li t0, 0x0000000000000000       # Limb 2
+sd t0, 16(t1)
+li t0, 0x0000000000000000       # Limb 3 (highest bits)
+sd t0, 24(t1)
 addi s3, s3, 1          # Increment stack pointer
 # CODECOPY 
 li a0, 3
@@ -263,13 +284,16 @@ jal ra, deduct_gas
 # PUSH 0
 li a0, 6
 jal ra, deduct_gas
-li t0, 0            # Load value
 slli t1, s3, 5          # Stack offset = s3 * 32
 add  t1, s2, t1         # Address = stack base + offset
-sd   t0, 0(t1)          # Store limb0
-sd   zero, 8(t1)        # limb1 = 0
-sd   zero, 16(t1)       # limb2 = 0
-sd   zero, 24(t1)       # limb3 = 0
+li t0, 0x0000000000000000       # Limb 0 (lowest 64 bits)
+sd t0, 0(t1)
+li t0, 0x0000000000000000       # Limb 1
+sd t0, 8(t1)
+li t0, 0x0000000000000000       # Limb 2
+sd t0, 16(t1)
+li t0, 0x0000000000000000       # Limb 3 (highest bits)
+sd t0, 24(t1)
 addi s3, s3, 1          # Increment stack pointer
 # RETURN 
 # RETURN - exit and return memory slice
@@ -426,13 +450,16 @@ jal ra, deduct_gas
 # PUSH e15bdbd97a4c7d64736f6c634300081a003300000000000000
 li a0, 6
 jal ra, deduct_gas
-li t0, e15bdbd97a4c7d64736f6c634300081a003300000000000000            # Load value
 slli t1, s3, 5          # Stack offset = s3 * 32
 add  t1, s2, t1         # Address = stack base + offset
-sd   t0, 0(t1)          # Store limb0
-sd   zero, 8(t1)        # limb1 = 0
-sd   zero, 16(t1)       # limb2 = 0
-sd   zero, 24(t1)       # limb3 = 0
+li t0, 0x3300000000000000       # Limb 0 (lowest 64 bits)
+sd t0, 0(t1)
+li t0, 0x6f6c634300081a00       # Limb 1
+sd t0, 8(t1)
+li t0, 0x5bdbd97a4c7d6473       # Limb 2
+sd t0, 16(t1)
+li t0, 0x00000000000000e1       # Limb 3 (highest bits)
+sd t0, 24(t1)
 addi s3, s3, 1          # Increment stack pointer
 ld   ra, 56(sp)
 ld   s0, 48(sp)

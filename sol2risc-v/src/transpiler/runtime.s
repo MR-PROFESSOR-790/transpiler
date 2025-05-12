@@ -9,7 +9,7 @@
 .globl mul256
 .globl evm_revert
 .globl evm_return
-.globl evm_codecopy
+.globl codecopy
 .globl memcpy
 .globl get_call_value
 .globl _exit
@@ -54,7 +54,7 @@ mstore:
     jr ra
 
 # codecopy: a0 = dest, a1 = src, a2 = size
-evm_codecopy:
+codecopy:
     add t0, s0, a0
     add t1, s0, a1
     call memcpy

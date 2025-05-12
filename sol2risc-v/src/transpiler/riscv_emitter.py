@@ -211,17 +211,38 @@ class RiscvEmitter:
                 val = instr.get("value", 0)  # default to 0 if missing
                 if val is None:
                     val = 0  # avoid "li t0, None" invalid assembly
+                try:    
+                    if isinstance(val, str):
+                        if val.startswith("0x"):
+                            val_int = int(val, 16)
+                        elif all(c in "0123456789abcdefABCDEF" for c in val):
+                            val_int = int("0x" + val, 16)
+                        else:
+                            val_int = int(val)
+                    else:
+                        val_int = int(val)
+                except Exception as e:
+                    logging.error(f"Invalid PUSH value: {val} ({e})")
+                    val_int = 0    
+                    
+                limbs = []
+                for i in range(4):
+                    limb = (val_int >> (i*64)) & 0xFFFFFFFFFFFFFFFF
+                    limbs.append(f"0x{limb:016x}")
 
                 riscv_lines.append(f"# PUSH {val}")
                 riscv_lines.append("li a0, 6")
                 riscv_lines.append("jal ra, deduct_gas")
-                riscv_lines.append(f"li t0, {val}            # Load value")
                 riscv_lines.append("slli t1, s3, 5          # Stack offset = s3 * 32")
                 riscv_lines.append("add  t1, s2, t1         # Address = stack base + offset")
-                riscv_lines.append("sd   t0, 0(t1)          # Store limb0")
-                riscv_lines.append("sd   zero, 8(t1)        # limb1 = 0")
-                riscv_lines.append("sd   zero, 16(t1)       # limb2 = 0")
-                riscv_lines.append("sd   zero, 24(t1)       # limb3 = 0")
+                riscv_lines.append(f"li t0, {limbs[0]}       # Limb 0 (lowest 64 bits)")
+                riscv_lines.append("sd t0, 0(t1)")
+                riscv_lines.append(f"li t0, {limbs[1]}       # Limb 1")
+                riscv_lines.append("sd t0, 8(t1)")
+                riscv_lines.append(f"li t0, {limbs[2]}       # Limb 2")
+                riscv_lines.append("sd t0, 16(t1)")
+                riscv_lines.append(f"li t0, {limbs[3]}       # Limb 3 (highest bits)")
+                riscv_lines.append("sd t0, 24(t1)")
                 riscv_lines.append("addi s3, s3, 1          # Increment stack pointer")
                 continue
 
