@@ -36,7 +36,7 @@ class PatternRecognizer:
         Returns:
             dict: Map of detected pattern types to list of matched ranges
         """
-        logging.log("Starting pattern detection...")
+        logging.info("Starting pattern detection...")
 
         patterns = {
             "constant_folding": self.detect_constant_folding_opportunities(instructions),
@@ -52,7 +52,7 @@ class PatternRecognizer:
         # Log results
         for pattern_type, matches in patterns.items():
             if matches:
-                logging.log(f"Found {len(matches)} '{pattern_type}' patterns")
+                logging.info(f"Found {len(matches)} '{pattern_type}' patterns")
         return patterns
 
     def optimize_pattern(self, pattern_type, match_info, context):
@@ -66,7 +66,7 @@ class PatternRecognizer:
         Returns:
             list[dict]: Optimized instruction sequence or original if no change
         """
-        logging.log(f"Optimizing pattern: {pattern_type}")
+        logging.info(f"Optimizing pattern: {pattern_type}")
         if pattern_type == "constant_folding":
             return self.apply_constant_folding(match_info["range"], context)
         elif pattern_type == "dead_code":

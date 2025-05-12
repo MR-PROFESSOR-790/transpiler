@@ -46,6 +46,12 @@ mstore:
     # Store value
     sw t0, 0(t2)
     jr ra
+evm_codecopy:
+     # Assume args: a0 = dest offset, a1 = source offset, a2 = length
+    add t0, s0, a0     # MEM_BASE + dest
+    add t1, s0, a1     # MEM_BASE + source
+    call memcpy         # Standard library copy
+    ret
 
 # ---------------------------
 # Gas Metering

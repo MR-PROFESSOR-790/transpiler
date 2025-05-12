@@ -221,7 +221,7 @@ class TranspilerCLI:
                 if not hasattr(self, 'emitter') or self.emitter is None:
                     from .riscv_emitter import RiscvEmitter
                     self.emitter = RiscvEmitter(self.context)
-                riscv_code = self.emitter.emit_riscv_assembly(optimized_ir, context, output_file=output_file)
+                riscv_code = self.emitter.emit_riscv_assembly(optimized_ir, output_file=output_file)
                 stats["riscv_instruction_count"] = len(riscv_code.splitlines())
                 # Write the output if emitter didn't already do it
                 if output_file and not getattr(self.emitter, 'writes_output', False):

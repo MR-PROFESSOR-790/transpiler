@@ -1,5 +1,4 @@
 # riscv_emitter.py - Emits RISC-V assembly code based on parsed EVM instructions
-
 import os
 import logging
 from typing import List, Dict, Any
@@ -8,7 +7,6 @@ from typing import List, Dict, Any
 class RiscvEmitter:
     """
     Class responsible for emitting RISC-V assembly from EVM IR.
-    
     Handles:
     - Function prologue/epilogue
     - Instruction translation
@@ -27,6 +25,7 @@ class RiscvEmitter:
         self.invalid_opcodes = set()
         self.warnings = []
         self.errors = []
+        self.runtime_signatures = {}
 
     def set_context(self, context):
         """Set compilation context."""
@@ -37,28 +36,28 @@ class RiscvEmitter:
         """Initialize emitter dependencies."""
         if self.context is None:
             return
-            
-        from .register_allocator import RegisterAllocator
-        from .gas_costs import GasCostCalculator
-        
-        # Create instances of dependencies
-        self.register_allocator = RegisterAllocator()
-        self.register_allocator.set_context(self.context)
-        
-        self.gas_calculator = GasCostCalculator()
-        self.gas_calculator.set_context(self.context)
-        
-        # Bind methods
-        self.allocate_registers_for_instruction = self.register_allocator.allocate_registers_for_instruction
-        self.calculate_gas_cost = self.gas_calculator.calculate_gas_cost
-        self.deduct_gas = self.gas_calculator.deduct_gas
-        
-        # Initialize runtime signatures
-        self.runtime_signatures = self._parse_runtime_signature()
-        
-        logging.debug("Emitter dependencies initialized")
 
-    # --- Public Methods ---
+        try:
+            from .register_allocator import RegisterAllocator
+            from .gas_costs import GasCostCalculator
+
+            # Create instances of dependencies
+            self.register_allocator = RegisterAllocator()
+            self.register_allocator.set_context(self.context)
+            self.gas_calculator = GasCostCalculator()
+            self.gas_calculator.set_context(self.context)
+
+            # Bind methods
+            self.allocate_registers_for_instruction = self.register_allocator.allocate_registers_for_instruction
+            self.calculate_gas_cost = self.gas_calculator.calculate_gas_cost
+            self.deduct_gas = self.gas_calculator.deduct_gas
+
+            # Initialize runtime signatures
+            self.runtime_signatures = self._parse_runtime_signature()
+
+            logging.debug("Emitter dependencies initialized")
+        except Exception as e:
+            logging.warning(f"Failed to load emitter dependencies: {str(e)}")
 
     def emit_riscv_assembly(self, ir_representation: list, output_file: str = None):
         """
@@ -67,19 +66,19 @@ class RiscvEmitter:
         Args:
             ir_representation (list): List of instruction dictionaries
             output_file (str): Optional file to write output to
+            
         Returns:
             str: Final formatted RISC-V assembly
         """
         try:
             logging.debug("Starting RISC-V emission...")
-
             if not ir_representation:
                 raise ValueError("Empty IR representation provided")
 
             prologue = self.emit_function_prologue(self.context.function_info)
             epilogue = self.emit_function_epilogue(self.context.function_info)
-
             body_code = []
+
             for instr in ir_representation:
                 lines = self.emit_instruction_sequence([instr])
                 body_code.extend(lines)
@@ -92,9 +91,8 @@ class RiscvEmitter:
                 logging.debug(f"Successfully wrote assembly to {output_file}")
 
             return formatted
-
         except Exception as e:
-            logging.error(f"Error during RISC-V assembly emission: {str(e)}")
+            logging.error(f"Error during RISC-V assembly emission: {str(e)}", exc_info=True)
             raise
 
     def emit_function_prologue(self, function_info):
@@ -103,6 +101,7 @@ class RiscvEmitter:
         
         Args:
             function_info (dict): Metadata about function entry
+            
         Returns:
             list[str]: Prologue assembly lines
         """
@@ -110,7 +109,6 @@ class RiscvEmitter:
         return [
             f".globl {function_info['name']}",
             f"{function_info['name']}:",
-
             "addi sp, sp, -32",      # Reserve stack space
             "sw   ra, 28(sp)",       # Save return address
             "sw   s0, 24(sp)",       # Save saved registers
@@ -132,6 +130,7 @@ class RiscvEmitter:
         
         Args:
             function_info (dict): Metadata about function exit
+            
         Returns:
             list[str]: Epilogue assembly lines
         """
@@ -147,20 +146,20 @@ class RiscvEmitter:
             "lw   s6, 0(sp)",
             "addi sp, sp, 32",       # Deallocate stack
             "jr   ra",               # Return
-            "",                      # Extra line for .section
+            "",                       # Extra line for section switch
             ".section .bss",
             ".align 4",
             "evm_stack: .space 4096", # Reserve 1KB for EVM stack
-            ".section .text"         # Return to text section
+            ".section .text"          # Return to text section
         ]
 
-    def emit_instruction_sequence(self, instructions: list):
+    def emit_instruction_sequence(self, instructions: list) -> List[str]:
         """
         Translate a sequence of EVM instructions into RISC-V instructions.
-        Uses register allocator and runtime call helpers internally.
         
         Args:
             instructions (list): List of EVM instructions
+            
         Returns:
             list[str]: Generated RISC-V assembly lines
         """
@@ -169,47 +168,50 @@ class RiscvEmitter:
         for instr in instructions:
             opcode = instr["opcode"]
             offset = instr.get("offset", "")
-            
-            # Add a label for each instruction address
+
+            # Add offset label if present
             if offset:
                 riscv_lines.append(f"{offset:04x}:")
-            
-            # Add comment with original EVM instruction
-            riscv_lines.append(f"# {opcode} {' '.join(instr.get('args', []))}")
 
-            # Register allocation per instruction
-            reg_alloc = self.allocate_registers_for_instruction(instr, self.context)
+            # Add comment showing original instruction
+            args = ' '.join(instr.get('args', []))
+            riscv_lines.append(f"# {opcode} {args}")
 
-            # Gas cost emission
+            # Deduct gas cost if available
             gas_line = self.emit_gas_cost(opcode)
             if gas_line:
                 riscv_lines.append(gas_line)
 
-            # Handle special labels for JUMPDEST
+            # Handle JUMPDEST
             if opcode == "JUMPDEST":
                 label = f"jumpdest_{instr.get('index', 0)}"
                 riscv_lines.append(f"{label}:")
                 continue
-                
+
             # Handle special runtime functions
             if opcode in ["KECCAK256", "CALLDATACOPY", "CODECOPY"]:
-                args = {"size": reg_alloc.get("size"), "offset": reg_alloc.get("offset")}
+                reg_alloc = self.allocate_registers_for_instruction(instr, self.context)
+                args = {
+                    "size": reg_alloc.get("size"),
+                    "offset": reg_alloc.get("offset")
+                }
                 riscv_lines.extend(self.emit_runtime_calls(opcode.lower(), args))
                 continue
 
-            # Extended instruction mapping - includes all EVM instructions
             # Stack operations
             if opcode.startswith("PUSH"):
-                val = instr["value"]
-                riscv_lines.append(f"li   t0, {val}     # Push value onto stack")
+                val = instr["value"] or "0"
+                riscv_lines.append(f"li t0, {val}     # Push value onto stack")
                 riscv_lines.append(f"slli t1, s3, 2     # Calculate stack offset")
                 riscv_lines.append(f"add  t1, s2, t1    # Get stack address")
                 riscv_lines.append(f"sw   t0, 0(t1)     # Store value to stack")
                 riscv_lines.append(f"addi s3, s3, 1     # Increment stack pointer")
-            
+                continue
+
             elif opcode == "POP":
                 riscv_lines.append(f"addi s3, s3, -1    # Decrement stack pointer")
-                
+                continue
+
             elif opcode.startswith("DUP"):
                 n = int(opcode[3:])
                 riscv_lines.append(f"addi t0, s3, -{n}  # Calculate dup index")
@@ -220,7 +222,8 @@ class RiscvEmitter:
                 riscv_lines.append(f"add  t0, s2, t0    # Get current stack address")
                 riscv_lines.append(f"sw   t1, 0(t0)     # Store duplicated value")
                 riscv_lines.append(f"addi s3, s3, 1     # Increment stack pointer")
-                
+                continue
+
             elif opcode.startswith("SWAP"):
                 n = int(opcode[4:])
                 riscv_lines.append(f"addi t0, s3, -1    # Top of stack")
@@ -233,7 +236,8 @@ class RiscvEmitter:
                 riscv_lines.append(f"lw   t3, 0(t1)     # Load target value")
                 riscv_lines.append(f"sw   t3, 0(t0)     # Store target at top")
                 riscv_lines.append(f"sw   t2, 0(t1)     # Store top at target")
-                
+                continue
+
             # Arithmetic operations
             elif opcode == "ADD":
                 riscv_lines.append(f"addi s3, s3, -2    # Pop two values")
@@ -244,7 +248,8 @@ class RiscvEmitter:
                 riscv_lines.append(f"add  t3, t1, t2    # Add values")
                 riscv_lines.append(f"sw   t3, 0(t0)     # Store result")
                 riscv_lines.append(f"addi s3, s3, 1     # Adjust stack pointer")
-                
+                continue
+
             elif opcode == "MUL":
                 riscv_lines.append(f"addi s3, s3, -2    # Pop two values")
                 riscv_lines.append(f"slli t0, s3, 2     # Calculate stack offset")
@@ -254,7 +259,8 @@ class RiscvEmitter:
                 riscv_lines.append(f"mul  t3, t1, t2    # Multiply values")
                 riscv_lines.append(f"sw   t3, 0(t0)     # Store result")
                 riscv_lines.append(f"addi s3, s3, 1     # Adjust stack pointer")
-                
+                continue
+
             elif opcode == "SUB":
                 riscv_lines.append(f"addi s3, s3, -2    # Pop two values")
                 riscv_lines.append(f"slli t0, s3, 2     # Calculate stack offset")
@@ -263,8 +269,9 @@ class RiscvEmitter:
                 riscv_lines.append(f"lw   t2, 4(t0)     # Load second value")
                 riscv_lines.append(f"sub  t3, t1, t2    # Subtract values")
                 riscv_lines.append(f"sw   t3, 0(t0)     # Store result")
-                riscv_lines.append(f"addi s3, s3, 1     # Adjust stack pointer")
-                
+                riscv_lines.append(f"addi s3, s3, 1     # Increment stack pointer")
+                continue
+
             # Control flow
             elif opcode == "JUMP":
                 riscv_lines.append(f"addi s3, s3, -1    # Pop jump target")
@@ -276,33 +283,36 @@ class RiscvEmitter:
                 riscv_lines.append(f"add  t1, t1, t0    # Calculate jump address")
                 riscv_lines.append(f"lw   t1, 0(t1)     # Load actual address")
                 riscv_lines.append(f"jr   t1            # Jump to target")
-                
+                continue
+
             elif opcode == "JUMPI":
                 riscv_lines.append(f"addi s3, s3, -2    # Pop jump target and condition")
                 riscv_lines.append(f"slli t0, s3, 2     # Calculate stack offset")
                 riscv_lines.append(f"add  t0, s2, t0    # Get stack address")
                 riscv_lines.append(f"lw   t0, 0(t0)     # Load jump target")
                 riscv_lines.append(f"lw   t1, 4(t0)     # Load condition")
-                riscv_lines.append(f"beqz t1, jumpi_skip_{instr.get('index', 0)} # Skip if condition is false")
+                riscv_lines.append(f"beqz t1, jumpi_skip_{instr.get('index', 0)} # Skip if false")
                 riscv_lines.append(f"la   t2, jumpdest_table # Load jump table")
                 riscv_lines.append(f"slli t0, t0, 2     # Multiply by 4 for word alignment")
                 riscv_lines.append(f"add  t2, t2, t0    # Calculate jump address")
                 riscv_lines.append(f"lw   t2, 0(t2)     # Load actual address")
-                riscv_lines.append(f"jr   t2            # Jump to target")
+                riscv_lines.append(f"jr   t2             # Jump to target")
                 riscv_lines.append(f"jumpi_skip_{instr.get('index', 0)}:")
-                
+                continue
+
             # Memory operations
             elif opcode == "MSTORE":
-                riscv_lines.append(f"addi s3, s3, -2    # Pop address and value")
+                riscv_lines.append(f"addi s3, s3, -2    # Pop memory offset and value")
                 riscv_lines.append(f"slli t0, s3, 2     # Calculate stack offset")
                 riscv_lines.append(f"add  t0, s2, t0    # Get stack address")
                 riscv_lines.append(f"lw   t1, 0(t0)     # Load memory offset")
-                riscv_lines.append(f"lw   t2, 4(t0)     # Load value to store")
+                riscv_lines.append(f"lw   t2, 4(t0)     # Load value")
                 riscv_lines.append(f"add  t1, s0, t1    # Add memory base")
                 riscv_lines.append(f"sw   t2, 0(t1)     # Store value to memory")
-                
+                continue
+
             elif opcode == "MLOAD":
-                riscv_lines.append(f"addi s3, s3, -1    # Pop address")
+                riscv_lines.append(f"addi s3, s3, -1    # Pop memory offset")
                 riscv_lines.append(f"slli t0, s3, 2     # Calculate stack offset")
                 riscv_lines.append(f"add  t0, s2, t0    # Get stack address")
                 riscv_lines.append(f"lw   t1, 0(t0)     # Load memory offset")
@@ -310,7 +320,8 @@ class RiscvEmitter:
                 riscv_lines.append(f"lw   t2, 0(t1)     # Load value from memory")
                 riscv_lines.append(f"sw   t2, 0(t0)     # Push value onto stack")
                 riscv_lines.append(f"addi s3, s3, 1     # Increment stack pointer")
-                
+                continue
+
             # Comparison operations
             elif opcode == "ISZERO":
                 riscv_lines.append(f"addi s3, s3, -1    # Pop value")
@@ -320,7 +331,8 @@ class RiscvEmitter:
                 riscv_lines.append(f"seqz t1, t1        # Set t1 to 1 if t1 == 0, otherwise 0")
                 riscv_lines.append(f"sw   t1, 0(t0)     # Store result")
                 riscv_lines.append(f"addi s3, s3, 1     # Increment stack pointer")
-                
+                continue
+
             elif opcode == "EQ":
                 riscv_lines.append(f"addi s3, s3, -2    # Pop two values")
                 riscv_lines.append(f"slli t0, s3, 2     # Calculate stack offset")
@@ -328,10 +340,11 @@ class RiscvEmitter:
                 riscv_lines.append(f"lw   t1, 0(t0)     # Load first value")
                 riscv_lines.append(f"lw   t2, 4(t0)     # Load second value")
                 riscv_lines.append(f"xor  t3, t1, t2    # XOR values")
-                riscv_lines.append(f"seqz t3, t3        # Set t3 to 1 if t1 == t2, otherwise 0")
+                riscv_lines.append(f"seqz t3, t3        # Set t3 to 1 if equal")
                 riscv_lines.append(f"sw   t3, 0(t0)     # Store result")
                 riscv_lines.append(f"addi s3, s3, 1     # Increment stack pointer")
-                
+                continue
+
             # External interactions
             elif opcode == "CALLVALUE":
                 riscv_lines.append(f"jal  ra, get_call_value # Get call value from runtime")
@@ -339,7 +352,8 @@ class RiscvEmitter:
                 riscv_lines.append(f"add  t0, s2, t0    # Get stack address")
                 riscv_lines.append(f"sw   a0, 0(t0)     # Store call value on stack")
                 riscv_lines.append(f"addi s3, s3, 1     # Increment stack pointer")
-                
+                continue
+
             elif opcode == "RETURN":
                 riscv_lines.append(f"addi s3, s3, -2    # Pop offset and length")
                 riscv_lines.append(f"slli t0, s3, 2     # Calculate stack offset")
@@ -348,7 +362,8 @@ class RiscvEmitter:
                 riscv_lines.append(f"lw   a1, 4(t0)     # Load length")
                 riscv_lines.append(f"add  a0, s0, a0    # Add memory base to offset")
                 riscv_lines.append(f"jal  ra, evm_return # Call return function")
-                
+                continue
+
             elif opcode == "REVERT":
                 riscv_lines.append(f"addi s3, s3, -2    # Pop offset and length")
                 riscv_lines.append(f"slli t0, s3, 2     # Calculate stack offset")
@@ -357,22 +372,22 @@ class RiscvEmitter:
                 riscv_lines.append(f"lw   a1, 4(t0)     # Load length")
                 riscv_lines.append(f"add  a0, s0, a0    # Add memory base to offset")
                 riscv_lines.append(f"jal  ra, evm_revert # Call revert function")
-                
-            # Misc operations
+                continue
+
             elif opcode == "CODECOPY":
-                riscv_lines.append(f"addi s3, s3, -3    # Pop dest offset, source offset, length")
+                riscv_lines.append(f"addi s3, s3, -3    # Pop dest, source, size")
                 riscv_lines.append(f"slli t0, s3, 2     # Calculate stack offset")
                 riscv_lines.append(f"add  t0, s2, t0    # Get stack address")
                 riscv_lines.append(f"lw   a0, 0(t0)     # Load dest offset")
-                riscv_lines.append(f"lw   a1, 4(t0)     # Load source offset")
-                riscv_lines.append(f"lw   a2, 8(t0)     # Load length")
-                riscv_lines.append(f"add  a0, s0, a0    # Add memory base to dest offset")
+                riscv_lines.append(f"lw   a1, 4(t0)     # Load src offset")
+                riscv_lines.append(f"lw   a2, 8(t0)     # Load size")
+                riscv_lines.append(f"add  a0, s0, a0    # Add memory base to dest")
                 riscv_lines.append(f"jal  ra, evm_codecopy # Call codecopy function")
-                
+                continue
+
             else:
+                # Unknown opcode
                 riscv_lines.append(f"# Unimplemented opcode: {opcode}")
-                # If we encounter an unimplemented opcode, we should at least
-                # adjust the stack to maintain the correct semantics
                 stack_effect = instr.get("stack_effect", 0)
                 if stack_effect != 0:
                     riscv_lines.append(f"addi s3, s3, {stack_effect} # Adjust stack for unimplemented opcode")
@@ -385,6 +400,7 @@ class RiscvEmitter:
         
         Args:
             opcode (str): EVM instruction name
+            
         Returns:
             str: RISC-V gas deduction line or empty string
         """
@@ -393,33 +409,18 @@ class RiscvEmitter:
             return f"li a0, {cost}\njal ra, deduct_gas"
         return ""
 
-    def emit_error_handling_code(self, error_type: str):
-        """
-        Generate assembly for handling known error types.
-        
-        Args:
-            error_type (str): Type of error (e.g., 'revert', 'invalid')
-        Returns:
-            list[str]: Assembly lines for error handling
-        """
-        handlers = {
-            "revert": ["jal ra, evm_revert"],
-            "invalid": ["jal ra, evm_invalid"],
-            "out_of_gas": ["jal ra, evm_out_of_gas"]
-        }
-
-        return handlers.get(error_type.lower(), ["ebreak"])
-
     def _parse_runtime_signature(self, runtime_file="runtime.s"):
         """
-        Parse runtime.s to extract function signatures and their argument patterns.
+        Parse runtime.s to extract function signatures.
         
+        Args:
+            runtime_file (str): Path to runtime file
+            
         Returns:
             dict: Mapping of runtime functions to their argument specs
         """
         runtime_signatures = {}
         runtime_path = os.path.join(os.path.dirname(__file__), runtime_file)
-
         try:
             with open(runtime_path, 'r') as f:
                 current_func = None
@@ -427,14 +428,10 @@ class RiscvEmitter:
                     line = line.strip()
                     if line.startswith('.globl'):
                         current_func = line.split()[-1]
-                        runtime_signatures[current_func] = {
-                            'args': [],
-                            'registers': ['a0', 'a1', 'a2', 'a3', 'a4', 'a5']
-                        }
+                        runtime_signatures[current_func] = {'registers': ['a0', 'a1', 'a2', 'a3', 'a4', 'a5']}
         except FileNotFoundError:
-            logging.error(f"Runtime file {runtime_file} not found")
+            logging.warning(f"Runtime file {runtime_file} not found")
             return {}
-
         return runtime_signatures
 
     def emit_runtime_calls(self, runtime_function: str, args: dict):
@@ -444,6 +441,7 @@ class RiscvEmitter:
         Args:
             runtime_function (str): Name of the runtime function to call
             args (dict): Arguments (registers or values) to prepare
+            
         Returns:
             list[str]: RISC-V assembly lines calling the function
         """
@@ -453,8 +451,8 @@ class RiscvEmitter:
             logging.warning(f"Unknown runtime function: {runtime_function}")
             return [f"# Unknown runtime function: {runtime_function}"]
 
-        # Map arguments to registers
         signature = self.runtime_signatures[runtime_function]
+
         for i, (arg_name, arg_value) in enumerate(args.items()):
             if i < len(signature['registers']):
                 reg = signature['registers'][i]
@@ -463,16 +461,16 @@ class RiscvEmitter:
                 else:
                     lines.append(f"li {reg}, {arg_value}")
 
-        # Call the runtime function
         lines.append(f"jal ra, {runtime_function}")
         return lines
 
-    def format_assembly_output(self, assembly_code: list):
+    def format_assembly_output(self, assembly_code: list) -> str:
         """
         Format raw assembly lines into clean sectioned output.
         
         Args:
             assembly_code (list): Raw RISC-V assembly lines
+            
         Returns:
             str: Cleanly formatted assembly string
         """
@@ -483,15 +481,13 @@ class RiscvEmitter:
             ".align 4",
             "jumpdest_table:"
         ]
-        
-        # Generate jump table entries
-        if hasattr(self, 'context') and hasattr(self.context, 'jumpdests'):
-            for jumpdest in self.context.jumpdests:
-                output.append(f".word jumpdest_{jumpdest}")
-                
+
+        if hasattr(self.context, 'jumpdests'):
+            for idx in sorted(self.context.jumpdests):
+                output.append(f"    .word jumpdest_{idx}")
+
         output.append("")
         output.extend(assembly_code)
-        
         return "\n".join(output)
 
     def write_output_file(self, assembly_code: str, output_file: str):
@@ -506,21 +502,28 @@ class RiscvEmitter:
             output_dir = os.path.dirname(output_file)
             if output_dir and not os.path.exists(output_dir):
                 os.makedirs(output_dir)
-
             with open(output_file, "w") as f:
                 f.write(assembly_code)
-
         except IOError as e:
             logging.error(f"Failed to write output file {output_file}: {str(e)}")
             raise
 
-    def emit(self, line):
-        """Emit a RISC-V assembly line."""
-        if line.startswith("#"):
-            self.output_lines.append(line)
-        else:
-            # Add proper indentation for assembly instructions
-            self.output_lines.append("    " + line)
+    def emit_error_handling_code(self, error_type: str):
+        """
+        Generate assembly for handling known error types.
+        
+        Args:
+            error_type (str): Type of error (e.g., 'revert', 'invalid')
+            
+        Returns:
+            list[str]: Assembly lines for error handling
+        """
+        handlers = {
+            "revert": ["jal ra, evm_revert"],
+            "invalid": ["jal ra, evm_invalid"],
+            "out_of_gas": ["jal ra, evm_out_of_gas"]
+        }
+        return handlers.get(error_type.lower(), ["ebreak"])
 
     def get_unknown_opcodes(self):
         """Get set of unknown opcodes encountered."""

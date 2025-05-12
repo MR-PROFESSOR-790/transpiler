@@ -15,6 +15,7 @@ class InstructionOptimizer:
         """
         self.context = context
         self.pattern_recognizer = None
+        self.unknown_instruction_handling = "preserve"  # Can be 'preserve', 'replace', or 'remove'
         if context is not None:
             self._init_dependencies()
 
@@ -27,6 +28,23 @@ class InstructionOptimizer:
         """
         self.context = context
         self._init_dependencies()
+        
+    def set_unknown_handling(self, mode="preserve"):
+        """
+        Configure how unknown instructions are handled.
+        
+        Args:
+            mode (str): One of 'preserve' (keep as is), 'remove' (filter out), 
+                        or 'replace' (substitute with NOP)
+        """
+        valid_modes = ["preserve", "remove", "replace"]
+        if mode not in valid_modes:
+            logging.warning(f"Invalid unknown instruction handling mode: {mode}. " 
+                          f"Must be one of {valid_modes}. Using 'preserve'.")
+            mode = "preserve"
+        
+        self.unknown_instruction_handling = mode
+        logging.info(f"Set unknown instruction handling to '{mode}'")
 
     def _init_dependencies(self):
         """Lazy-load dependent modules to avoid circular imports."""
@@ -79,9 +97,11 @@ class InstructionOptimizer:
         try:
             optimized = instructions.copy()
 
-            # First filter out unknown instructions
-            optimized = self.remove_unknown_instructions(optimized)
-            logging.debug(f"After removing unknowns: {len(optimized)}")
+            # First handle unknown instructions
+            original_count = len(optimized)
+            optimized = self.handle_unknown_instructions(optimized)
+            if len(optimized) != original_count:
+                logging.debug(f"After handling unknowns: {len(optimized)}")
 
             # Apply passes in order
             passes = [
@@ -98,7 +118,8 @@ class InstructionOptimizer:
                     before = len(optimized)
                     optimized = func(optimized)
                     after = len(optimized)
-                    logging.debug(f"{name} reduced instructions from {before} → {after}")
+                    if before != after:
+                        logging.debug(f"{name} reduced instructions from {before} → {after}")
                 except Exception as e:
                     logging.error(f"Error during '{name}': {str(e)}", exc_info=True)
                     # Continue with the next pass instead of failing completely
@@ -110,26 +131,54 @@ class InstructionOptimizer:
             # Return original instructions instead of empty list to avoid pipeline failure
             return instructions
 
-    def remove_unknown_instructions(self, instructions):
+    def handle_unknown_instructions(self, instructions):
         """
-        Filter out unsupported or unknown opcodes.
+        Handle unsupported or unknown opcodes based on configured policy.
         """
         if not instructions:
             return []
             
-        filtered = []
+        result = []
+        unknown_count = 0
+        
         for instr in instructions:
             opcode = instr.get("opcode", "")
+            
             # Skip instructions with type 'label' since they're not opcodes
             if instr.get("type") == "label":
-                filtered.append(instr)
+                result.append(instr)
                 continue
                 
             if opcode.startswith("UNKNOWN"):
-                logging.warning(f"Skipping unsupported instruction: {opcode}")
-                continue
-            filtered.append(instr)
-        return filtered
+                unknown_count += 1
+                
+                if self.unknown_instruction_handling == "preserve":
+                    # Keep the instruction but log it
+                    logging.info(f"Preserving unknown instruction: {opcode}")
+                    result.append(instr)
+                    
+                elif self.unknown_instruction_handling == "replace":
+                    # Replace with NOP (represented as PUSH1 0, POP)
+                    logging.info(f"Replacing unknown instruction {opcode} with NOP")
+                    result.append({"opcode": "PUSH1", "value": "0x0", "args": ["0x0"], "stack_effect": 1})
+                    result.append({"opcode": "POP", "args": [], "stack_effect": -1})
+                    
+                elif self.unknown_instruction_handling == "remove":
+                    # Skip the instruction entirely
+                    logging.info(f"Removing unknown instruction: {opcode}")
+                    # Don't append to result
+                    
+                else:
+                    # Should never happen due to validation in set_unknown_handling
+                    logging.warning(f"Unknown handling mode '{self.unknown_instruction_handling}', preserving instruction")
+                    result.append(instr)
+            else:
+                result.append(instr)
+                
+        if unknown_count > 0:
+            logging.info(f"Handled {unknown_count} unknown instructions with mode '{self.unknown_instruction_handling}'")
+            
+        return result
 
     def perform_constant_folding(self, instructions: list):
         """
@@ -159,7 +208,7 @@ class InstructionOptimizer:
                     i += 1
                     continue
                     
-                if next_instr.get("opcode") in ["ADD", "MUL"]:
+                if next_instr.get("opcode") in ["ADD", "MUL", "SUB", "DIV"]:
                     try:
                         # Check if value is valid
                         value = instr.get("value")
@@ -171,29 +220,34 @@ class InstructionOptimizer:
                         # Try to parse the value safely
                         val1 = int(value, 16) if value.startswith("0x") else int(value, 16)
                         
-                        # Check if next instruction has a value
-                        value2 = next_instr.get("value")
-                        if value2 is None or not isinstance(value2, str):
-                            optimized.append(instr)
-                            i += 1
-                            continue
-                            
-                        val2 = int(value2, 16) if value2.startswith("0x") else int(value2, 16)
-                        
-                        result = {
-                            "ADD": val1 + val2,
-                            "MUL": val1 * val2
-                        }.get(next_instr["opcode"])
-                        
-                        if result is not None:
-                            optimized.append({
-                                "opcode": "PUSH1", 
-                                "value": hex(result),
-                                "args": [hex(result)],
-                                "stack_effect": instr.get("stack_effect", 0)
-                            })
-                            i += 2
-                            continue
+                        # Look for preceding PUSH instruction
+                        if i > 0 and instructions[i-1].get("opcode", "").startswith("PUSH"):
+                            prev_value = instructions[i-1].get("value")
+                            if prev_value is not None and isinstance(prev_value, str):
+                                val2 = int(prev_value, 16) if prev_value.startswith("0x") else int(prev_value, 16)
+                                
+                                # Calculate result based on operation
+                                result = None
+                                if next_instr["opcode"] == "ADD":
+                                    result = val1 + val2
+                                elif next_instr["opcode"] == "MUL":
+                                    result = val1 * val2
+                                elif next_instr["opcode"] == "SUB":
+                                    result = val2 - val1  # Note: order matters for SUB
+                                elif next_instr["opcode"] == "DIV" and val1 != 0:
+                                    result = val2 // val1  # Integer division
+                                
+                                if result is not None:
+                                    # Replace last instruction with result and skip next two
+                                    optimized.pop()  # Remove previous PUSH
+                                    optimized.append({
+                                        "opcode": "PUSH1" if result < 256 else "PUSH2", 
+                                        "value": hex(result),
+                                        "args": [hex(result)],
+                                        "stack_effect": 1
+                                    })
+                                    i += 2  # Skip current PUSH and operation
+                                    continue
                     except (ValueError, TypeError) as e:
                         logging.debug(f"Could not fold constants: {e}")
                         # Fall through to append the original instruction
@@ -298,11 +352,17 @@ class InstructionOptimizer:
                 
                 # ADD + ADD -> MUL by 2
                 if curr.get("opcode") == "ADD" and next_instr.get("opcode") == "ADD":
+                    # Replace with PUSH1 2 + MUL
+                    optimized.append({
+                        "opcode": "PUSH1", 
+                        "value": "0x2",
+                        "args": ["0x2"],
+                        "stack_effect": 1
+                    })
                     optimized.append({
                         "opcode": "MUL", 
-                        "args": ["0x2"],
-                        "value": "0x2",
-                        "stack_effect": curr.get("stack_effect", 0)
+                        "args": [],
+                        "stack_effect": -1
                     })
                     i += 2
                     continue
@@ -310,9 +370,21 @@ class InstructionOptimizer:
                 # PUSH1 0 + ADD -> NOP (optimization pattern)
                 if (curr.get("opcode") == "PUSH1" and curr.get("value") == "0x0" and 
                     next_instr.get("opcode") == "ADD"):
-                    # This is equivalent to a NOP - skip both instructions
-                    # Just keep the ADD instruction which effectively does nothing
+                    # This is equivalent to a NOP - skip the PUSH0 instruction
                     optimized.append(next_instr)
+                    i += 2
+                    continue
+                    
+                # PUSH1 0 + MUL -> POP + PUSH1 0 (zero result)
+                if (curr.get("opcode") == "PUSH1" and curr.get("value") == "0x0" and 
+                    next_instr.get("opcode") == "MUL"):
+                    optimized.append({"opcode": "POP", "args": [], "stack_effect": -1})
+                    optimized.append({
+                        "opcode": "PUSH1", 
+                        "value": "0x0",
+                        "args": ["0x0"],
+                        "stack_effect": 1
+                    })
                     i += 2
                     continue
                     
@@ -333,40 +405,60 @@ class InstructionOptimizer:
         logging.debug("Optimizing memory access...")
         optimized = []
         i = 0
+        
+        # Track last memory access by offset
+        last_store = {}  # offset -> instruction index
+        
         while i < len(instructions):
+            instr = instructions[i]
+            
             # Skip label instructions
-            if instructions[i].get("type") == "label":
-                optimized.append(instructions[i])
+            if instr.get("type") == "label":
+                optimized.append(instr)
                 i += 1
                 continue
                 
-            if i + 1 < len(instructions):
-                curr = instructions[i]
-                next_instr = instructions[i + 1]
-                
-                # Skip if next instruction is a label
-                if next_instr.get("type") == "label":
-                    optimized.append(curr)
-                    i += 1
-                    continue
-                
-                # MSTORE followed by MLOAD at same offset - eliminate the MLOAD
-                if curr.get("opcode") == "MSTORE" and next_instr.get("opcode") == "MLOAD":
-                    offset1 = curr.get("offset", -1)
-                    offset2 = next_instr.get("offset", -2)  # Use different default to force mismatch
+            opcode = instr.get("opcode", "")
+            
+            # Track memory stores
+            if opcode == "MSTORE":
+                offset = instr.get("offset")
+                if offset is not None:
+                    last_store[offset] = len(optimized)
+            
+            # Check for redundant memory loads
+            if opcode == "MLOAD":
+                offset = instr.get("offset")
+                if offset is not None and offset in last_store:
+                    # Look up the store instruction
+                    store_idx = last_store[offset]
+                    store_instr = optimized[store_idx]
                     
-                    # If we can't determine offsets, be conservative
-                    if offset1 == offset2 and offset1 >= 0:
-                        # Keep the value on stack by modifying MSTORE to DUP before store
-                        # This preserves both the store and provides the value to whoever
-                        # was going to consume the MLOAD result
+                    # If this is loading right after storing, we can optimize
+                    if store_instr.get("opcode") == "MSTORE" and store_instr.get("offset") == offset:
+                        # Add a DUP1 before the MSTORE in place of the MLOAD
                         dup_instr = {"opcode": "DUP1", "args": [], "stack_effect": 1}
-                        optimized.append(dup_instr)
-                        optimized.append(curr)
-                        i += 2
+                        optimized.insert(store_idx, dup_instr)
+                        i += 1
                         continue
             
-            optimized.append(instructions[i])
+            # Check for consecutive memory operations that can be combined
+            if i + 1 < len(instructions) and opcode in ["MSTORE", "MSTORE8"]:
+                next_instr = instructions[i + 1]
+                if next_instr.get("opcode") == opcode:
+                    # Check if offsets are adjacent
+                    curr_offset = instr.get("offset")
+                    next_offset = next_instr.get("offset")
+                    
+                    if (curr_offset is not None and next_offset is not None and 
+                        (opcode == "MSTORE" and next_offset == curr_offset + 32) or
+                        (opcode == "MSTORE8" and next_offset == curr_offset + 1)):
+                        # Could potentially combine into a single wider store
+                        # This is complex and needs careful analysis of stack values
+                        # For now, just keep track of this pattern
+                        logging.debug(f"Potential memory access optimization at {i}")
+            
+            optimized.append(instr)
             i += 1
             
         return optimized
@@ -400,7 +492,7 @@ class InstructionOptimizer:
                 
                 # Pattern: POP followed by POP (wasteful)
                 if curr.get("opcode") == "POP" and next_instr.get("opcode") == "POP":
-                    # Replace with SWAP1 + POP which is more efficient since it removes both values with one POP
+                    # Replace with SWAP1 + POP which is more efficient for two values
                     optimized.append({"opcode": "SWAP1", "args": [], "stack_effect": 0})
                     optimized.append({"opcode": "POP", "args": [], "stack_effect": -1})
                     i += 2
@@ -420,11 +512,59 @@ class InstructionOptimizer:
                     
                 # Pattern: JUMPDEST, JUMP (directly jump to next instruction)
                 if curr.get("opcode") == "JUMPDEST" and next_instr.get("opcode") == "JUMP":
-                    if "target_index" in next_instr and next_instr["target_index"] == i:
-                        # This is a jump to itself - potential infinite loop
-                        # Keep it as is to preserve semantics
+                    target_idx = next_instr.get("target_index", -1)
+                    if target_idx > i and target_idx < len(instructions):
+                        # This is a forward jump - check if there's anything important between
+                        # this jump and its destination
+                        has_side_effects = False
+                        for j in range(i+2, target_idx):
+                            if j < len(instructions):
+                                # Check if any instruction between has side effects
+                                intermediate_op = instructions[j].get("opcode", "")
+                                if intermediate_op and not intermediate_op.startswith(("PUSH", "DUP", "SWAP")):
+                                    has_side_effects = True
+                                    break
+                        
+                        if not has_side_effects:
+                            # Can skip directly to target
+                            optimized.append(curr)  # Keep the JUMPDEST
+                            i = target_idx  # Jump to target directly
+                            continue
+                
+                # Check for three instruction patterns
+                if i + 2 < len(instructions):
+                    next_next_instr = instructions[i + 2]
+                    
+                    # Pattern: PUSH1 0, PUSH1 x, SUB = PUSH1 -x
+                    if (curr.get("opcode") == "PUSH1" and curr.get("value") == "0x0" and
+                        next_instr.get("opcode").startswith("PUSH") and
+                        next_next_instr.get("opcode") == "SUB"):
+                        
+                        try:
+                            # Convert to negative value (2's complement for appropriate size)
+                            val = int(next_instr.get("value", "0x0"), 16)
+                            neg_val = (1 << (8 * (int(next_instr.get("opcode")[4:] or "1")))) - val
+                            
+                            # Replace with single negative push
+                            optimized.append({
+                                "opcode": next_instr.get("opcode"),
+                                "value": hex(neg_val),
+                                "args": [hex(neg_val)],
+                                "stack_effect": 1
+                            })
+                            i += 3
+                            continue
+                        except (ValueError, TypeError) as e:
+                            logging.debug(f"Could not optimize SUB pattern: {e}")
+                    
+                    # Pattern: DUP1, ISZERO, ISZERO = just DUP1 (double negation)
+                    if (curr.get("opcode") == "DUP1" and
+                        next_instr.get("opcode") == "ISZERO" and
+                        next_next_instr.get("opcode") == "ISZERO"):
+                        
+                        # Double negation cancels out, just keep the DUP1
                         optimized.append(curr)
-                        i += 1
+                        i += 3
                         continue
                         
             optimized.append(instructions[i])
