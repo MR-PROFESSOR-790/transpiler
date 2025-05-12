@@ -1,12 +1,10 @@
 # context_manager.py - Shared context management for EVM-to-RISC-V transpiler
-
 import logging
 
 
 class CompilationContext:
     """
     Central context object shared between all transpiler components.
-
     Encapsulates stack state, memory model, gas metering, function info,
     jump destinations, labels, source map, and optimization tracking.
     """
@@ -93,12 +91,10 @@ class CompilationContext:
             logging.error(f"Failed to import required modules: {e}")
             self._fallback_stack_init()
             self._fallback_memory_init()
-            raise
         except Exception as e:
             logging.error(f"Error during dependency initialization: {e}")
             self._fallback_stack_init()
             self._fallback_memory_init()
-            raise
 
     # Add fallback initialization methods
     def _fallback_stack_init(self):
@@ -124,36 +120,30 @@ class CompilationContext:
     def update_context_for_instruction(self, instruction):
         """
         Update context based on instruction effects (stack, gas, memory).
-
         Args:
             instruction (dict): EVM instruction dictionary
         """
         opcode = instruction.get("opcode", "UNKNOWN")
-
         # Track jump destinations
         if opcode == "JUMPDEST":
             offset = instruction.get("offset", -1)
             if offset >= 0:
                 self.jumpdests.add(offset)
-
         # Simulate stack effect
         success = self.simulate_instruction_stack_effect(instruction, self.stack)
         if not success:
             logging.error(f"Stack inconsistency in instruction: {opcode}")
-
         # Calculate and track gas cost
         gas_cost = self.calculate_gas_cost(opcode, self)
         self.gas_meter["total"] += gas_cost
         breakdown = self.gas_meter["breakdown"]
         breakdown[opcode] = breakdown.get(opcode, 0) + gas_cost
-
         # Optional: track memory expansion, storage access, etc.
         logging.debug(f"Processing instruction: {instruction}")
 
     def get_current_stack_state(self):
         """
         Get current stack size and contents.
-
         Returns:
             dict: Copy of current stack state
         """
@@ -162,7 +152,6 @@ class CompilationContext:
     def get_current_memory_state(self):
         """
         Get current memory model.
-
         Returns:
             dict: Copy of current memory state
         """
@@ -171,7 +160,6 @@ class CompilationContext:
     def get_current_storage_state(self):
         """
         Get current storage access tracking.
-
         Returns:
             dict: Copy of current storage state
         """
@@ -180,7 +168,6 @@ class CompilationContext:
     def get_current_gas_state(self):
         """
         Get current gas usage information.
-
         Returns:
             dict: Copy of gas meter data
         """
@@ -189,7 +176,6 @@ class CompilationContext:
     def track_jump_destinations(self):
         """
         Return set of known jump destinations.
-
         Returns:
             set: Set of jump destination offsets
         """
@@ -198,7 +184,6 @@ class CompilationContext:
     def get_current_scope(self):
         """
         Get current function or block scope.
-
         Returns:
             str: Current scope name
         """
@@ -240,16 +225,37 @@ class CompilationContext:
 
     def generate_debug_info(self, instructions):
         """Generate debug information for the compilation."""
-        self.debug_info = {
-            "instructions": [str(instr) for instr in instructions],
-            "unknown_opcodes": list(self.unknown_opcodes),
-            "invalid_opcodes": list(self.invalid_opcodes),
-            "warnings": self.warnings,
-            "errors": self.errors,
-            "stack_depth": self.stack_emulator.max_depth,
-            "memory_usage": self.memory_model.get_usage(),
-            "gas_usage": self.gas_meter["total"]
-        }
+        try:
+            stack_depth = 0
+            memory_usage = 0
+
+            if hasattr(self, 'stack_emulator') and self.stack_emulator is not None:
+                stack_depth = self.stack_emulator.context.stack.get("max_size", 0)
+            else:
+                logging.warning("StackEmulator not available for debug info")
+
+            if hasattr(self, 'memory_model') and self.memory_model is not None:
+                memory_usage = self.memory_model.get_usage()
+            else:
+                logging.warning("MemoryModel not available for debug info")
+
+            self.debug_info = {
+                "instructions": [str(instr) for instr in instructions],
+                "unknown_opcodes": list(self.unknown_opcodes),
+                "invalid_opcodes": list(self.invalid_opcodes),
+                "warnings": self.warnings,
+                "errors": self.errors,
+                "stack_depth": stack_depth,
+                "memory_usage": memory_usage,
+                "gas_usage": self.gas_meter["total"]
+            }
+
+        except Exception as e:
+            logging.error(f"Error generating debug info: {str(e)}")
+            self.debug_info = {
+                "error": f"Debug info generation failed: {str(e)}"
+            }
+
         return self.debug_info
 
     def create_source_map(self, evm_instructions, riscv_instructions):
@@ -258,20 +264,23 @@ class CompilationContext:
             "evm_to_riscv": {},
             "riscv_to_evm": {}
         }
-        
-        # Map EVM instructions to RISC-V instructions
-        for i, evm_instr in enumerate(evm_instructions):
-            if i < len(riscv_instructions):
-                self.source_map["evm_to_riscv"][str(evm_instr)] = riscv_instructions[i]
-                self.source_map["riscv_to_evm"][riscv_instructions[i]] = str(evm_instr)
-        
+
+        try:
+            # Map EVM instructions to RISC-V instructions
+            for i, evm_instr in enumerate(evm_instructions):
+                if i < len(riscv_instructions):
+                    self.source_map["evm_to_riscv"][str(evm_instr)] = riscv_instructions[i]
+                    self.source_map["riscv_to_evm"][riscv_instructions[i]] = str(evm_instr)
+        except Exception as e:
+            logging.error(f"Error creating source map: {str(e)}")
+            self.source_map["error"] = str(e)
+
         return self.source_map
 
 
 class ContextManager:
     """
     Factory and utility class for working with CompilationContext.
-
     Allows creation and management of context objects while preserving legacy interfaces.
     """
 
@@ -279,7 +288,6 @@ class ContextManager:
     def create_transpilation_context():
         """
         Create and return a new transpilation context.
-
         Returns:
             CompilationContext: Initialized context object
         """

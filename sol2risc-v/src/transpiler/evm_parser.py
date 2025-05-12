@@ -30,7 +30,7 @@ class EvmParser:
         "DIFFICULTY", "GASLIMIT", "CHAINID", "SELFBALANCE", "BASEFEE", "COINBASE",
         "ADDRESS", "BALANCE", "ORIGIN", "CALLER", "CALLVALUE", "CALLDATALOAD", "CALLDATASIZE",
         "CALLDATACOPY", "CODESIZE", "CODECOPY", "RETURNDATASIZE", "RETURNDATACOPY", "EXTCODESIZE",
-        "EXTCODECOPY", "EXTCODEHASH", "BLOCKHASH", "PUSH0", "SHA3", "CODECOPY", "TIMESTAMP", "MSIZE",
+        "EXTCODECOPY", "EXTCODEHASH", "BLOCKHASH", "SHA3", "CODECOPY", "TIMESTAMP", "MSIZE",
     }
 
     def __init__(self, context=None):
@@ -154,7 +154,6 @@ class EvmParser:
         if not line or line.startswith(";"):
             return None
         
-
         # Remove hex address prefix like '001A:'
         line = re.sub(r'^[0-9a-fA-F]{2,}:\s*', '', line).strip()
 
@@ -173,7 +172,7 @@ class EvmParser:
         return {
             "opcode": opcode,
             "args": args,
-            "value": args[0] if len(args) == 1 else None
+            "value": args[0] if len(args) > 0 else None
         }
 
     def validate_instruction(self, instruction: dict) -> bool:
@@ -198,14 +197,18 @@ class EvmParser:
             logging.warning(f"Unknown opcode for validation: {opcode}")
             return True  # Allow unknown opcodes but skip further checks
 
+        # PUSH0 is valid without arguments in some contexts
+        if opcode == "PUSH0":
+            return True
+
         # Basic validation rules
-        if opcode.startswith("PUSH") and len(args) != 1:
+        if opcode.startswith("PUSH") and opcode != "PUSH0" and len(args) != 1:
             return False
         elif opcode.startswith("DUP") and len(args) != 0:
             return False
         elif opcode.startswith("SWAP") and len(args) != 0:
             return False
-        elif opcode in ["JUMP", "JUMPI"] and len(args) != 0:
+        elif opcode in ["JUMP", "JUMPI"] and len(args) > 1:  # Allow empty args for JUMP/JUMPI
             return False
 
         return True
@@ -234,10 +237,19 @@ class EvmParser:
 
     def resolve_jumps(self, instructions: list, labels: dict):
         logging.info("Resolving jump destinations...")
-        for instr in instructions:
-            if instr.get("opcode") in ["JUMP", "JUMPI"]:
-                target_label = instr.get("value", "").strip()
-                instr["target_index"] = labels.get(target_label, -1)
+        try:
+            for instr in instructions:
+                if instr.get("opcode") in ["JUMP", "JUMPI"]:
+                    # Get target label safely, without assuming it exists
+                    target_label = instr.get("value")
+                    if target_label is not None:
+                        target_label = target_label.strip()
+                        instr["target_index"] = labels.get(target_label, -1)
+                    else:
+                        # Handle case where value is None
+                        instr["target_index"] = -1
+        except Exception as e:
+            logging.error(f"Parser error: {e}")
 
     def detect_function_boundaries(self, instructions: list):
         logging.info("Detecting function boundaries...")
@@ -262,5 +274,9 @@ class EvmParser:
                 continue
 
             opcode = instr.get("opcode", "").upper()
-            delta = self.calculate_stack_effect(opcode)
-            instr["stack_effect"] = delta
+            try:
+                delta = self.calculate_stack_effect(opcode)
+                instr["stack_effect"] = delta
+            except Exception as e:
+                logging.warning(f"Failed to calculate stack effect for {opcode}: {e}")
+                instr["stack_effect"] = 0
