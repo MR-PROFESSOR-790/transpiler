@@ -226,7 +226,7 @@ class TranspilerCLI:
                 # Write the output if emitter didn't already do it
                 if output_file and not getattr(self.emitter, 'writes_output', False):
                     try:
-                        with open(output_file, 'w') as f:
+                        with open(output_file, 'w', encoding='utf-8') as f:
                             f.write(riscv_code)
                         logging.info(f"RISC-V assembly written to {output_file}")
                     except Exception as e:
