@@ -1,8 +1,10 @@
-.section .text
+.section .rodata
 
 # Jump destination table
 .align 4
 jumpdest_table:
+
+.section .text
 
 .globl evm_entry
 evm_entry:
@@ -478,6 +480,8 @@ ld   s4, 16(sp)
 ld   s5, 8(sp)
 ld   s6, 0(sp)
 addi sp, sp, 64
+li   s1, 100000
+li   s3, 0
 jr   ra
 
 .section .bss

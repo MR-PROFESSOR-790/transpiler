@@ -146,6 +146,8 @@ class RiscvEmitter:
             "ld   s5, 8(sp)",
             "ld   s6, 0(sp)",
             "addi sp, sp, 64",        # Deallocate stack
+            "li   s1, 100000",        # Reset GAS_REGISTER
+            "li   s3, 0",             # Reset EVM stack pointer (s3)"
             "jr   ra",                # Return to caller
             "",                       # Spacer for clarity
             ".section .bss",
@@ -987,7 +989,7 @@ class RiscvEmitter:
             str: Cleanly formatted assembly string
         """
         output = [
-            ".section .text",
+            ".section .rodata",
             "",
             "# Jump destination table",
             ".align 4",
@@ -998,6 +1000,8 @@ class RiscvEmitter:
             for idx in sorted(self.context.jumpdests):
                 output.append(f"    .word jumpdest_{idx}")
 
+        output.append("")
+        output.append(".section .text")
         output.append("")
         output.extend(assembly_code)
         return "\n".join(output)
