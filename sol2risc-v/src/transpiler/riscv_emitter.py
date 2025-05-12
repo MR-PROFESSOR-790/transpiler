@@ -383,6 +383,7 @@ class RiscvEmitter:
                 riscv_lines.append(f"lw   a2, 8(t0)     # Load size")
                 riscv_lines.append(f"add  a0, s0, a0    # Add memory base to dest")
                 riscv_lines.append(f"jal  ra, evm_codecopy # Call codecopy function")
+                riscv_lines.append(f"addi s3, s3, 3")
                 continue
 
             else:
@@ -423,12 +424,12 @@ class RiscvEmitter:
         runtime_path = os.path.join(os.path.dirname(__file__), runtime_file)
         try:
             with open(runtime_path, 'r') as f:
-                current_func = None
+                func_name = None
                 for line in f:
                     line = line.strip()
                     if line.startswith('.globl'):
-                        current_func = line.split()[-1]
-                        runtime_signatures[current_func] = {'registers': ['a0', 'a1', 'a2', 'a3', 'a4', 'a5']}
+                        func_name = line.split()[-1]
+                        runtime_signatures[func_name] = {'registers': ['a0', 'a1', 'a2', 'a3', 'a4', 'a5']}
         except FileNotFoundError:
             logging.warning(f"Runtime file {runtime_file} not found")
             return {}
