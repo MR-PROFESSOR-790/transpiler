@@ -233,7 +233,7 @@ class RegisterAllocator:
         assignment = self.assign_physical_registers(virtual_regs, coloring)
         optimized = self.optimize_register_assignment(assignment, instructions)
 
-        logging.log(f"Register allocation complete. Spilled: {list(spilled)}")
+        logging.info(f"Register allocation complete. Spilled: {list(spilled)}")
         return optimized
 
     # ---------------------------
