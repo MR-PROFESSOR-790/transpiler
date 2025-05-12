@@ -26,6 +26,7 @@ class RiscvEmitter:
         self.warnings = []
         self.errors = []
         self.runtime_signatures = {}
+        self.jumpdest_counter  = 0
 
     def set_context(self, context):
         """Set compilation context."""
@@ -186,8 +187,11 @@ class RiscvEmitter:
 
             # Handle JUMPDEST
             if opcode == "JUMPDEST":
-                label = f"jumpdest_{instr.get('index', 0)}"
+                label = f"jumpdest_{self.jumpdest_counter}"
                 riscv_lines.append(f"{label}:")
+                riscv_lines.append("li a0, 3")
+                riscv_lines.append("jal ra, deduct_gas")
+                self.jumpdest_counter += 1
                 continue
 
             # Handle special runtime functions
@@ -205,7 +209,6 @@ class RiscvEmitter:
                 riscv_lines.extend(self.emit_runtime_calls(opcode.lower(), args))
                 continue
 
-            # Stack operations
             # Stack operations
             if opcode.startswith("PUSH"):
                 val = instr.get("value", 0)  # default to 0 if missing
@@ -900,7 +903,7 @@ class RiscvEmitter:
                 stack_effect = instr.get("stack_effect", 0)
                 if stack_effect != 0:
                     riscv_lines.append(f"addi s3, s3, {stack_effect} # Adjust stack for unimplemented opcode")
-
+        
         return riscv_lines
 
     def emit_gas_cost(self, opcode: str) -> str:

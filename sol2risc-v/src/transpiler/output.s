@@ -201,6 +201,8 @@ jal  ra, evm_revert    # call runtime revert function
 li a0, 3
 jal ra, deduct_gas
 jumpdest_0:
+li a0, 3
+jal ra, deduct_gas
 # POP 
 li a0, 2
 jal ra, deduct_gas
@@ -277,7 +279,9 @@ addi s3, s3, 1          # Increment stack pointer
 # CODECOPY 
 li a0, 3
 jal ra, deduct_gas
-# Unknown runtime function: codecopy
+li a0, a0
+li a1, a1
+jal ra, codecopy
 # PUSH0 
 li a0, 3
 jal ra, deduct_gas
@@ -307,7 +311,9 @@ jal  ra, evm_return    # call runtime return function
 # JUMPDEST 
 li a0, 3
 jal ra, deduct_gas
-jumpdest_0:
+jumpdest_1:
+li a0, 3
+jal ra, deduct_gas
 # UNKNOWN_0XDF 
 li a0, 3
 jal ra, deduct_gas
@@ -315,7 +321,9 @@ jal ra, deduct_gas
 # JUMPDEST 
 li a0, 3
 jal ra, deduct_gas
-jumpdest_0:
+jumpdest_2:
+li a0, 3
+jal ra, deduct_gas
 # UNKNOWN_0XC5 
 li a0, 3
 jal ra, deduct_gas
