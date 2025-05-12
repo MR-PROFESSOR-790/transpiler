@@ -76,6 +76,8 @@ sd   t5, 24(t1)
 li a0, 3
 jal ra, deduct_gas
 # CALLVALUE - get call value (256-bit, low only)
+li a0, 3
+jal ra, deduct_gas
 jal ra, get_call_value     # Assume it returns value in a0
 slli t1, s3, 5             # s3 * 32
 add  t1, s2, t1
@@ -192,6 +194,8 @@ sd   t5, 24(t1)
 addi s3, s3, 1          # Push duplicate
 # REVERT 
 # REVERT - undo state and return error slice
+li a0, 0x0A
+jal ra, deduct_gas
 addi s3, s3, -2
 slli t0, s3, 5
 add  t0, s2, t0
@@ -303,6 +307,8 @@ sd t0, 24(t1)
 addi s3, s3, 1          # Increment stack pointer
 # RETURN 
 # RETURN - exit and return memory slice
+li a0, 0x0A
+jal ra, deduct_gas
 addi s3, s3, -2
 slli t0, s3, 5
 add  t0, s2, t0
@@ -428,6 +434,8 @@ addi s3, s3, 1 # Adjust stack for unimplemented opcode
 li a0, 10
 jal ra, deduct_gas
 # SWAP7
+li a0, 3
+jal ra, deduct_gas
 addi t0, s3, -1         # Top index
 addi t1, s3, -8     # Swap index
 slli t0, t0, 5

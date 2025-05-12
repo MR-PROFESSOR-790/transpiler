@@ -839,6 +839,8 @@ class RiscvEmitter:
             # External interactions
             elif opcode == "CALLVALUE":
                 riscv_lines.append("# CALLVALUE - get call value (256-bit, low only)")
+                riscv_lines.append("li a0, 3")
+                riscv_lines.append("jal ra, deduct_gas")
                 riscv_lines.append("jal ra, get_call_value     # Assume it returns value in a0")
                 riscv_lines.append("slli t1, s3, 5             # s3 * 32")
                 riscv_lines.append("add  t1, s2, t1")
@@ -846,11 +848,13 @@ class RiscvEmitter:
                 riscv_lines.append("sd   zero, 8(t1)")
                 riscv_lines.append("sd   zero, 16(t1)")
                 riscv_lines.append("sd   zero, 24(t1)")
-                riscv_lines.append("addi s3, s3, 1             # Push 256-bit result")
+                riscv_lines.append("addi s3, s3, 1             # Push 256-bit result")            # Push 256-bit result")
                 continue
 
             elif opcode == "RETURN":
                 riscv_lines.append("# RETURN - exit and return memory slice")
+                riscv_lines.append("li a0, 0x0A")
+                riscv_lines.append("jal ra, deduct_gas")
                 riscv_lines.append("addi s3, s3, -2")
                 riscv_lines.append("slli t0, s3, 5")
                 riscv_lines.append("add  t0, s2, t0")
@@ -862,6 +866,8 @@ class RiscvEmitter:
 
             elif opcode == "REVERT":
                 riscv_lines.append("# REVERT - undo state and return error slice")
+                riscv_lines.append("li a0, 0x0A")
+                riscv_lines.append("jal ra, deduct_gas")
                 riscv_lines.append("addi s3, s3, -2")
                 riscv_lines.append("slli t0, s3, 5")
                 riscv_lines.append("add  t0, s2, t0")
@@ -872,31 +878,36 @@ class RiscvEmitter:
                 continue
 
             elif opcode == "CODECOPY":
-                riscv_lines.append(f"addi s3, s3, -3    # Pop dest, source, size")
-                riscv_lines.append(f"slli t0, s3, 2     # Calculate stack offset")
-                riscv_lines.append(f"add  t0, s2, t0    # Get stack address")
-                riscv_lines.append(f"lw   a0, 0(t0)     # Load dest offset")
-                riscv_lines.append(f"lw   a1, 4(t0)     # Load src offset")
-                riscv_lines.append(f"lw   a2, 8(t0)     # Load size")
-                riscv_lines.append(f"add  a0, s0, a0    # Add memory base to dest")
-                riscv_lines.append(f"jal  ra, evm_codecopy # Call codecopy function")
-                riscv_lines.append(f"addi s3, s3, 3")
+                riscv_lines.append("# CODECOPY - copy runtime code to memory")
+                riscv_lines.append("li a0, 3")
+                riscv_lines.append("jal ra, deduct_gas")
+                riscv_lines.append("addi s3, s3, -3")                    # dest offset, source offset, length
+                riscv_lines.append("slli t0, s3, 5")
+                riscv_lines.append("add  t0, s2, t0")
+                riscv_lines.append("ld   a0, 0(t0)        # dest offset")
+                riscv_lines.append("ld   a1, 8(t0)        # source offset")
+                riscv_lines.append("ld   a2, 16(t0)       # length")
+                riscv_lines.append("add  a0, a0, s0       # a0 = dest + MEM_BASE")
+                riscv_lines.append("add  a1, a1, s0       # a1 = source + MEM_BASE")
+                riscv_lines.append("jal  ra, evm_codecopy")
                 continue
             
             elif opcode.startswith("SWAP"):
                 n = int(opcode[4:])
                 riscv_lines.append(f"# SWAP{n}")
+                riscv_lines.append(f"li a0, 3")
+                riscv_lines.append(f"jal ra, deduct_gas")
                 riscv_lines.append(f"addi t0, s3, -1         # Top index")
                 riscv_lines.append(f"addi t1, s3, -{n+1}     # Swap index")
                 riscv_lines.append(f"slli t0, t0, 5")
                 riscv_lines.append(f"slli t1, t1, 5")
                 riscv_lines.append(f"add  t0, s2, t0         # Addr1")
                 riscv_lines.append(f"add  t1, s2, t1         # Addr2")
-                for i in [0, 8, 16, 24]:
-                    riscv_lines.append(f"ld t2, {i}(t0)")
-                    riscv_lines.append(f"ld t3, {i}(t1)")
-                    riscv_lines.append(f"sd t3, {i}(t0)")
-                    riscv_lines.append(f"sd t2, {i}(t1)")
+                for offset in [0, 8, 16, 24]:
+                    riscv_lines.append(f"ld t2, {offset}(t0)")
+                    riscv_lines.append(f"ld t3, {offset}(t1)")
+                    riscv_lines.append(f"sd t3, {offset}(t0)")
+                    riscv_lines.append(f"sd t2, {offset}(t1)")
                 continue
 
             else:
@@ -968,12 +979,27 @@ class RiscvEmitter:
         signature = self.runtime_signatures[runtime_function]
 
         for i, (arg_name, arg_value) in enumerate(args.items()):
-            if i < len(signature['registers']):
-                reg = signature['registers'][i]
-                if isinstance(arg_value, str) and arg_value.startswith('$'):
-                    lines.append(f"mv {reg}, {arg_value[1:]}")
+            if i >= len(signature['registers']):
+                break
+            reg = signature['registers'][i]
+            if isinstance(arg_value, int):
+                lines.append(f"li {reg}, {arg_value}")
+            elif isinstance(arg_value, str):
+                if arg_value.startswith('$'):
+                    src_reg = arg_value[1:]
+                    if reg != src_reg:
+                        lines.append(f"mv {reg}, {src_reg}")
+                elif arg_value.lower().startswith('0x') or arg_value.isdigit():
+                    try:
+                        val = int(arg_value, 0)
+                        lines.append(f"li {reg}, {val}")
+                    except:
+                        lines.append(f"la {reg}, {val}")
+                    
                 else:
                     lines.append(f"li {reg}, {arg_value}")
+            else:
+                lines.append(f"li {reg}, 0")
 
         lines.append(f"jal ra, {runtime_function}")
         return lines
@@ -1003,6 +1029,7 @@ class RiscvEmitter:
         output.append("")
         output.append(".section .text")
         output.append("")
+
         output.extend(assembly_code)
         return "\n".join(output)
 
