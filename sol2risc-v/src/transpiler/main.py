@@ -228,6 +228,8 @@ class TranspilerCLI:
                     try:
                         with open(output_file, 'w', encoding='utf-8') as f:
                             f.write(riscv_code)
+                            if not riscv_code.endswith('\n'):
+                                f.write('\n')
                         logging.info(f"RISC-V assembly written to {output_file}")
                     except Exception as e:
                         logging.error(f"Failed to write output file: {str(e)}")

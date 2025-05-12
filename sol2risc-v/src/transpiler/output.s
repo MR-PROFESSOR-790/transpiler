@@ -285,8 +285,8 @@ addi s3, s3, 1          # Increment stack pointer
 # CODECOPY 
 li a0, 3
 jal ra, deduct_gas
-li a0, a0
-li a1, a1
+la a0, a0
+la a1, a1
 jal ra, codecopy
 # PUSH0 
 li a0, 3

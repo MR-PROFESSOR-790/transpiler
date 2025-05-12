@@ -985,6 +985,7 @@ class RiscvEmitter:
             if isinstance(arg_value, int):
                 lines.append(f"li {reg}, {arg_value}")
             elif isinstance(arg_value, str):
+                arg_value = arg_value.strip()
                 if arg_value.startswith('$'):
                     src_reg = arg_value[1:]
                     if reg != src_reg:
@@ -993,11 +994,11 @@ class RiscvEmitter:
                     try:
                         val = int(arg_value, 0)
                         lines.append(f"li {reg}, {val}")
-                    except:
-                        lines.append(f"la {reg}, {val}")
+                    except ValueError:
+                        lines.append(f"la {reg}, {arg_value}")
                     
                 else:
-                    lines.append(f"li {reg}, {arg_value}")
+                    lines.append(f"la {reg}, {arg_value}")
             else:
                 lines.append(f"li {reg}, 0")
 
