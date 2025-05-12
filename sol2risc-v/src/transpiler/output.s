@@ -6,23 +6,25 @@ jumpdest_table:
 
 .globl evm_entry
 evm_entry:
-addi sp, sp, -32
-sw   ra, 28(sp)
-sw   s0, 24(sp)
-sw   s1, 20(sp)
-sw   s2, 16(sp)
-sw   s3, 12(sp)
-sw   s4, 8(sp)
-sw   s5, 4(sp)
-sw   s6, 0(sp)
+addi sp, sp, -64
+sd   ra, 56(sp)
+sd   s0, 48(sp)
+sd   s1, 40(sp)
+sd   s2, 32(sp)
+sd   s3, 24(sp)
+sd   s4, 16(sp)
+sd   s5, 8(sp)
+sd   s6, 0(sp)
 li   s0, 0x10000000
-li   s1, 0
+li   s1, 100000
 la   s2, evm_stack
 li   s3, 0
 # PUSH1 80
 li a0, 6
 jal ra, deduct_gas
 # PUSH 80
+li a0, 6
+jal ra, deduct_gas
 li t0, 80            # Load value
 slli t1, s3, 5          # Stack offset = s3 * 32
 add  t1, s2, t1         # Address = stack base + offset
@@ -35,6 +37,8 @@ addi s3, s3, 1          # Increment stack pointer
 li a0, 6
 jal ra, deduct_gas
 # PUSH 40
+li a0, 6
+jal ra, deduct_gas
 li t0, 40            # Load value
 slli t1, s3, 5          # Stack offset = s3 * 32
 add  t1, s2, t1         # Address = stack base + offset
@@ -114,6 +118,8 @@ addi s3, s3, 1
 li a0, 6
 jal ra, deduct_gas
 # PUSH 0e
+li a0, 6
+jal ra, deduct_gas
 li t0, 0e            # Load value
 slli t1, s3, 5          # Stack offset = s3 * 32
 add  t1, s2, t1         # Address = stack base + offset
@@ -141,8 +147,10 @@ jumpi_skip_0:
 # PUSH0 
 li a0, 3
 jal ra, deduct_gas
-# PUSH None
-li t0, None            # Load value
+# PUSH 0
+li a0, 6
+jal ra, deduct_gas
+li t0, 0            # Load value
 slli t1, s3, 5          # Stack offset = s3 * 32
 add  t1, s2, t1         # Address = stack base + offset
 sd   t0, 0(t1)          # Store limb0
@@ -189,6 +197,8 @@ addi s3, s3, -1    # Decrement stack pointer
 li a0, 6
 jal ra, deduct_gas
 # PUSH 3e
+li a0, 6
+jal ra, deduct_gas
 li t0, 3e            # Load value
 slli t1, s3, 5          # Stack offset = s3 * 32
 add  t1, s2, t1         # Address = stack base + offset
@@ -219,6 +229,8 @@ addi s3, s3, 1          # Push duplicate
 li a0, 6
 jal ra, deduct_gas
 # PUSH 1a
+li a0, 6
+jal ra, deduct_gas
 li t0, 1a            # Load value
 slli t1, s3, 5          # Stack offset = s3 * 32
 add  t1, s2, t1         # Address = stack base + offset
@@ -230,8 +242,10 @@ addi s3, s3, 1          # Increment stack pointer
 # PUSH0 
 li a0, 3
 jal ra, deduct_gas
-# PUSH None
-li t0, None            # Load value
+# PUSH 0
+li a0, 6
+jal ra, deduct_gas
+li t0, 0            # Load value
 slli t1, s3, 5          # Stack offset = s3 * 32
 add  t1, s2, t1         # Address = stack base + offset
 sd   t0, 0(t1)          # Store limb0
@@ -246,8 +260,10 @@ jal ra, deduct_gas
 # PUSH0 
 li a0, 3
 jal ra, deduct_gas
-# PUSH None
-li t0, None            # Load value
+# PUSH 0
+li a0, 6
+jal ra, deduct_gas
+li t0, 0            # Load value
 slli t1, s3, 5          # Stack offset = s3 * 32
 add  t1, s2, t1         # Address = stack base + offset
 sd   t0, 0(t1)          # Store limb0
@@ -295,7 +311,23 @@ jal ra, deduct_gas
 # NOT 
 li a0, 3
 jal ra, deduct_gas
-# Unimplemented opcode: NOT
+# NOT - 256-bit bitwise negation
+addi s3, s3, -1
+slli t0, s3, 5
+add  t0, s2, t0
+ld t1, 0(t0)
+ld t2, 8(t0)
+ld t3, 16(t0)
+ld t4, 24(t0)
+not t1, t1
+not t2, t2
+not t3, t3
+not t4, t4
+sd t1, 0(t0)
+sd t2, 8(t0)
+sd t3, 16(t0)
+sd t4, 24(t0)
+addi s3, s3, 1
 # UNKNOWN_0XAB 
 li a0, 3
 jal ra, deduct_gas
@@ -392,6 +424,8 @@ jal ra, deduct_gas
 li a0, 78
 jal ra, deduct_gas
 # PUSH e15bdbd97a4c7d64736f6c634300081a003300000000000000
+li a0, 6
+jal ra, deduct_gas
 li t0, e15bdbd97a4c7d64736f6c634300081a003300000000000000            # Load value
 slli t1, s3, 5          # Stack offset = s3 * 32
 add  t1, s2, t1         # Address = stack base + offset
@@ -400,18 +434,18 @@ sd   zero, 8(t1)        # limb1 = 0
 sd   zero, 16(t1)       # limb2 = 0
 sd   zero, 24(t1)       # limb3 = 0
 addi s3, s3, 1          # Increment stack pointer
-lw   ra, 28(sp)
-lw   s0, 24(sp)
-lw   s1, 20(sp)
-lw   s2, 16(sp)
-lw   s3, 12(sp)
-lw   s4, 8(sp)
-lw   s5, 4(sp)
-lw   s6, 0(sp)
-addi sp, sp, 32
+ld   ra, 56(sp)
+ld   s0, 48(sp)
+ld   s1, 40(sp)
+ld   s2, 32(sp)
+ld   s3, 24(sp)
+ld   s4, 16(sp)
+ld   s5, 8(sp)
+ld   s6, 0(sp)
+addi sp, sp, 64
 jr   ra
 
 .section .bss
-.align 4
+.align 5
 evm_stack: .space 4096
 .section .text

@@ -98,60 +98,62 @@ class RiscvEmitter:
     def emit_function_prologue(self, function_info):
         """
         Emit function prologue boilerplate.
-        
+
         Args:
-            function_info (dict): Metadata about function entry
-            
+        function_info (dict): Metadata about function entry
+
         Returns:
-            list[str]: Prologue assembly lines
-        """
+        list[str]: Prologue assembly lines
+    """
         logging.info(f"Emitting prologue for {function_info['name']}")
         return [
             f".globl {function_info['name']}",
             f"{function_info['name']}:",
-            "addi sp, sp, -32",      # Reserve stack space
-            "sw   ra, 28(sp)",       # Save return address
-            "sw   s0, 24(sp)",       # Save saved registers
-            "sw   s1, 20(sp)",
-            "sw   s2, 16(sp)",
-            "sw   s3, 12(sp)",
-            "sw   s4, 8(sp)",
-            "sw   s5, 4(sp)",
-            "sw   s6, 0(sp)",
-            "li   s0, 0x10000000",   # MEM_BASE base address
-            "li   s1, 0",            # Initialize gas counter
-            "la   s2, evm_stack",    # EVM stack base
-            "li   s3, 0",            # EVM stack pointer
+            "addi sp, sp, -64",       # Reserve stack space for callee-saved registers
+            "sd   ra, 56(sp)",        # Save return address
+            "sd   s0, 48(sp)",        # Save callee-saved registers
+            "sd   s1, 40(sp)",
+            "sd   s2, 32(sp)",
+            "sd   s3, 24(sp)",
+            "sd   s4, 16(sp)",
+            "sd   s5, 8(sp)",
+            "sd   s6, 0(sp)",
+            "li   s0, 0x10000000",    # MEM_BASE
+            "li   s1, 100000",        # GAS_REGISTER (initial gas), adjustable
+            "la   s2, evm_stack",     # EVM stack base
+            "li   s3, 0",             # EVM stack pointer (index of 256-bit slots)
         ]
 
     def emit_function_epilogue(self, function_info):
         """
-        Emit function epilogue boilerplate.
-        
-        Args:
-            function_info (dict): Metadata about function exit
-            
-        Returns:
-            list[str]: Epilogue assembly lines
-        """
+    Emit function epilogue boilerplate.
+
+    Args:
+        function_info (dict): Metadata about function exit
+
+    Returns:
+        list[str]: Epilogue assembly lines
+    """
         logging.info(f"Emitting epilogue for {function_info['name']}")
         return [
-            "lw   ra, 28(sp)",       # Restore return address
-            "lw   s0, 24(sp)",       # Restore saved registers
-            "lw   s1, 20(sp)",
-            "lw   s2, 16(sp)",
-            "lw   s3, 12(sp)",
-            "lw   s4, 8(sp)",
-            "lw   s5, 4(sp)",
-            "lw   s6, 0(sp)",
-            "addi sp, sp, 32",       # Deallocate stack
-            "jr   ra",               # Return
-            "",                       # Extra line for section switch
+            "ld   ra, 56(sp)",        # Restore return address
+            "ld   s0, 48(sp)",        # Restore callee-saved registers
+            "ld   s1, 40(sp)",
+            "ld   s2, 32(sp)",
+            "ld   s3, 24(sp)",
+            "ld   s4, 16(sp)",
+            "ld   s5, 8(sp)",
+            "ld   s6, 0(sp)",
+            "addi sp, sp, 64",        # Deallocate stack
+            "jr   ra",                # Return to caller
+            "",                       # Spacer for clarity
             ".section .bss",
-            ".align 4",
-            "evm_stack: .space 4096", # Reserve 1KB for EVM stack
-            ".section .text"          # Return to text section
+            ".align 5",               # 2^5 = 32-byte alignment for 256-bit slots
+            "evm_stack: .space 4096", # Reserve space (can increase as needed)
+            ".section .text"
         ]
+
+    
 
     def emit_instruction_sequence(self, instructions: list) -> List[str]:
         """
@@ -189,7 +191,12 @@ class RiscvEmitter:
                 continue
 
             # Handle special runtime functions
-            if opcode in ["KECCAK256", "CALLDATACOPY", "CODECOPY"]:
+            runtime_map = {
+                "KECCAK256": "keccak256",
+                "CALLDATACOPY": "evm_calldatacopy",  # if defined
+                "CODECOPY": "evm_codecopy"
+}
+            if opcode in runtime_map:
                 reg_alloc = self.allocate_registers_for_instruction(instr, self.context)
                 args = {
                     "size": reg_alloc.get("size"),
@@ -199,21 +206,271 @@ class RiscvEmitter:
                 continue
 
             # Stack operations
+            # Stack operations
             if opcode.startswith("PUSH"):
-                val = instr.get("value", "0")
+                val = instr.get("value", 0)  # default to 0 if missing
+                if val is None:
+                    val = 0  # avoid "li t0, None" invalid assembly
+
                 riscv_lines.append(f"# PUSH {val}")
+                riscv_lines.append("li a0, 6")
+                riscv_lines.append("jal ra, deduct_gas")
                 riscv_lines.append(f"li t0, {val}            # Load value")
-                riscv_lines.append(f"slli t1, s3, 5          # Stack offset = s3 * 32")
-                riscv_lines.append(f"add  t1, s2, t1         # Address = stack base + offset")
-                riscv_lines.append(f"sd   t0, 0(t1)          # Store limb0")
-                riscv_lines.append(f"sd   zero, 8(t1)        # limb1 = 0")
-                riscv_lines.append(f"sd   zero, 16(t1)       # limb2 = 0")
-                riscv_lines.append(f"sd   zero, 24(t1)       # limb3 = 0")
-                riscv_lines.append(f"addi s3, s3, 1          # Increment stack pointer")
+                riscv_lines.append("slli t1, s3, 5          # Stack offset = s3 * 32")
+                riscv_lines.append("add  t1, s2, t1         # Address = stack base + offset")
+                riscv_lines.append("sd   t0, 0(t1)          # Store limb0")
+                riscv_lines.append("sd   zero, 8(t1)        # limb1 = 0")
+                riscv_lines.append("sd   zero, 16(t1)       # limb2 = 0")
+                riscv_lines.append("sd   zero, 24(t1)       # limb3 = 0")
+                riscv_lines.append("addi s3, s3, 1          # Increment stack pointer")
                 continue
+
 
             elif opcode == "POP":
                 riscv_lines.append(f"addi s3, s3, -1    # Decrement stack pointer")
+                continue
+            
+            elif opcode == "AND":
+                riscv_lines.append("# AND - 256-bit bitwise AND")
+                riscv_lines.append("addi s3, s3, -2")
+                riscv_lines.append("slli t0, s3, 5")
+                riscv_lines.append("add  t0, s2, t0")
+
+                riscv_lines.append("ld t1, 0(t0)")
+                riscv_lines.append("ld t2, 8(t0)")
+                riscv_lines.append("ld t3, 16(t0)")
+                riscv_lines.append("ld t4, 24(t0)")
+                riscv_lines.append("ld t5, 32(t0)")
+                riscv_lines.append("ld t6, 40(t0)")
+                riscv_lines.append("ld t7, 48(t0)")
+                riscv_lines.append("ld t8, 56(t0)")
+
+                riscv_lines.append("and s0, t1, t5")
+                riscv_lines.append("and s1, t2, t6")
+                riscv_lines.append("and s2, t3, t7")
+                riscv_lines.append("and s3, t4, t8")
+
+                riscv_lines.append("sd s0, 0(t0)")
+                riscv_lines.append("sd s1, 8(t0)")
+                riscv_lines.append("sd s2, 16(t0)")
+                riscv_lines.append("sd s3, 24(t0)")
+                riscv_lines.append("addi s3, s3, 1")
+                continue
+            elif opcode == "OR":
+                riscv_lines.append("# OR - 256-bit bitwise OR")
+                riscv_lines.append("addi s3, s3, -2")
+                riscv_lines.append("slli t0, s3, 5")
+                riscv_lines.append("add  t0, s2, t0")
+
+                riscv_lines.append("ld t1, 0(t0)")
+                riscv_lines.append("ld t2, 8(t0)")
+                riscv_lines.append("ld t3, 16(t0)")
+                riscv_lines.append("ld t4, 24(t0)")
+                riscv_lines.append("ld t5, 32(t0)")
+                riscv_lines.append("ld t6, 40(t0)")
+                riscv_lines.append("ld t7, 48(t0)")
+                riscv_lines.append("ld t8, 56(t0)")
+
+                riscv_lines.append("or s0, t1, t5")
+                riscv_lines.append("or s1, t2, t6")
+                riscv_lines.append("or s2, t3, t7")
+                riscv_lines.append("or s3, t4, t8")
+
+                riscv_lines.append("sd s0, 0(t0)")
+                riscv_lines.append("sd s1, 8(t0)")
+                riscv_lines.append("sd s2, 16(t0)")
+                riscv_lines.append("sd s3, 24(t0)")
+                riscv_lines.append("addi s3, s3, 1")
+                continue
+            elif opcode == "XOR":
+                riscv_lines.append("# XOR - 256-bit bitwise XOR")
+                riscv_lines.append("addi s3, s3, -2")
+                riscv_lines.append("slli t0, s3, 5")
+                riscv_lines.append("add  t0, s2, t0")
+
+                riscv_lines.append("ld t1, 0(t0)")
+                riscv_lines.append("ld t2, 8(t0)")
+                riscv_lines.append("ld t3, 16(t0)")
+                riscv_lines.append("ld t4, 24(t0)")
+                riscv_lines.append("ld t5, 32(t0)")
+                riscv_lines.append("ld t6, 40(t0)")
+                riscv_lines.append("ld t7, 48(t0)")
+                riscv_lines.append("ld t8, 56(t0)")
+
+                riscv_lines.append("xor s0, t1, t5")
+                riscv_lines.append("xor s1, t2, t6")
+                riscv_lines.append("xor s2, t3, t7")
+                riscv_lines.append("xor s3, t4, t8")
+
+                riscv_lines.append("sd s0, 0(t0)")
+                riscv_lines.append("sd s1, 8(t0)")
+                riscv_lines.append("sd s2, 16(t0)")
+                riscv_lines.append("sd s3, 24(t0)")
+                riscv_lines.append("addi s3, s3, 1")
+                continue
+            
+            elif opcode == "NOT":
+                riscv_lines.append("# NOT - 256-bit bitwise negation")
+                riscv_lines.append("addi s3, s3, -1")
+                riscv_lines.append("slli t0, s3, 5")
+                riscv_lines.append("add  t0, s2, t0")
+
+                riscv_lines.append("ld t1, 0(t0)")
+                riscv_lines.append("ld t2, 8(t0)")
+                riscv_lines.append("ld t3, 16(t0)")
+                riscv_lines.append("ld t4, 24(t0)")
+
+                riscv_lines.append("not t1, t1")
+                riscv_lines.append("not t2, t2")
+                riscv_lines.append("not t3, t3")
+                riscv_lines.append("not t4, t4")
+
+                riscv_lines.append("sd t1, 0(t0)")
+                riscv_lines.append("sd t2, 8(t0)")
+                riscv_lines.append("sd t3, 16(t0)")
+                riscv_lines.append("sd t4, 24(t0)")
+                riscv_lines.append("addi s3, s3, 1")
+                continue
+            elif opcode == "SHL":
+                riscv_lines.append("# SHL - 256-bit logical left shift (simplified for ≤64)")
+                riscv_lines.append("addi s3, s3, -2")
+                riscv_lines.append("slli t0, s3, 5")
+                riscv_lines.append("add  t0, s2, t0")
+
+                # Load shift amount and value
+                riscv_lines.append("ld t1, 0(t0)          # shift amount (only limb0 used)")
+                riscv_lines.append("ld t2, 8(t0)          # value limb0")
+                riscv_lines.append("ld t3, 16(t0)         # value limb1")
+                riscv_lines.append("ld t4, 24(t0)         # value limb2")
+                riscv_lines.append("ld t5, 32(t0)         # value limb3")
+                riscv_lines.append("li t6, 64")
+                riscv_lines.append("bge t1, t6, shl_zero")  # If ≥64, result is 0
+
+                # Shift each limb
+                riscv_lines.append("sll s0, t2, t1")  # out0 = lo << s
+                riscv_lines.append("srl s1, t2, sub t6, t1")
+                riscv_lines.append("sll s2, t3, t1")
+                riscv_lines.append("or  s1, s1, s2")   # out1 = (lo >> (64-s)) | (mid << s)
+                riscv_lines.append("srl s2, t3, sub t6, t1")
+                riscv_lines.append("sll s3, t4, t1")
+                riscv_lines.append("or  s2, s2, s3")   # out2
+                riscv_lines.append("srl s3, t4, sub t6, t1")
+                riscv_lines.append("sll s4, t5, t1")
+                riscv_lines.append("or  s3, s3, s4")   # out3
+
+                riscv_lines.append("sd s0, 0(t0)")
+                riscv_lines.append("sd s1, 8(t0)")
+                riscv_lines.append("sd s2, 16(t0)")
+                riscv_lines.append("sd s3, 24(t0)")
+                riscv_lines.append("addi s3, s3, 1")
+                riscv_lines.append("j shl_done")
+                riscv_lines.append("shl_zero:")
+                riscv_lines.append("sd zero, 0(t0)")
+                riscv_lines.append("sd zero, 8(t0)")
+                riscv_lines.append("sd zero, 16(t0)")
+                riscv_lines.append("sd zero, 24(t0)")
+                riscv_lines.append("addi s3, s3, 1")
+                riscv_lines.append("shl_done:")
+                continue
+            
+            elif opcode == "SHR":
+                riscv_lines.append("# SHR - 256-bit logical right shift (simplified for ≤64)")
+                riscv_lines.append("addi s3, s3, -2")
+                riscv_lines.append("slli t0, s3, 5")
+                riscv_lines.append("add  t0, s2, t0")
+
+                riscv_lines.append("ld t1, 0(t0)       # shift amount")
+                riscv_lines.append("ld t2, 8(t0)")     # val0
+                riscv_lines.append("ld t3, 16(t0)")    # val1
+                riscv_lines.append("ld t4, 24(t0)")    # val2
+                riscv_lines.append("ld t5, 32(t0)")    # val3
+                riscv_lines.append("li t6, 64")
+                riscv_lines.append("bge t1, t6, shr_zero")
+
+                # Shift
+                riscv_lines.append("srl s3, t5, t1")
+                riscv_lines.append("sll s4, t4, sub t6, t1")
+                riscv_lines.append("or  s3, s3, s4")   # out3
+
+                riscv_lines.append("srl s2, t4, t1")
+                riscv_lines.append("sll s4, t3, sub t6, t1")
+                riscv_lines.append("or  s2, s2, s4")   # out2
+
+                riscv_lines.append("srl s1, t3, t1")
+                riscv_lines.append("sll s4, t2, sub t6, t1")
+                riscv_lines.append("or  s1, s1, s4")   # out1
+
+                riscv_lines.append("srl s0, t2, t1")   # out0
+
+                riscv_lines.append("sd s0, 0(t0)")
+                riscv_lines.append("sd s1, 8(t0)")
+                riscv_lines.append("sd s2, 16(t0)")
+                riscv_lines.append("sd s3, 24(t0)")
+                riscv_lines.append("addi s3, s3, 1")
+                riscv_lines.append("j shr_done")
+                riscv_lines.append("shr_zero:")
+                riscv_lines.append("sd zero, 0(t0)")
+                riscv_lines.append("sd zero, 8(t0)")
+                riscv_lines.append("sd zero, 16(t0)")
+                riscv_lines.append("sd zero, 24(t0)")
+                riscv_lines.append("addi s3, s3, 1")
+                riscv_lines.append("shr_done:")
+                continue
+            
+            elif opcode == "SAR":
+                riscv_lines.append("# SAR - 256-bit arithmetic right shift (sign-preserving, ≤64 only)")
+                riscv_lines.append("addi s3, s3, -2")
+                riscv_lines.append("slli t0, s3, 5")
+                riscv_lines.append("add  t0, s2, t0")
+
+                riscv_lines.append("ld t1, 0(t0)       # shift amount")
+                riscv_lines.append("ld t2, 8(t0)")     # val0
+                riscv_lines.append("ld t3, 16(t0)")    # val1
+                riscv_lines.append("ld t4, 24(t0)")    # val2
+                riscv_lines.append("ld t5, 32(t0)")    # val3 (sign limb)")
+
+                riscv_lines.append("li t6, 64")
+                riscv_lines.append("bge t1, t6, sar_edge")
+
+                # Shift same as SHR
+                riscv_lines.append("sra s3, t5, t1")     # sign extend MSB
+                riscv_lines.append("sll s4, t4, sub t6, t1")
+                riscv_lines.append("or  s3, s3, s4")
+
+                riscv_lines.append("srl s2, t4, t1")
+                riscv_lines.append("sll s4, t3, sub t6, t1")
+                riscv_lines.append("or  s2, s2, s4")
+
+                riscv_lines.append("srl s1, t3, t1")
+                riscv_lines.append("sll s4, t2, sub t6, t1")
+                riscv_lines.append("or  s1, s1, s4")
+
+                riscv_lines.append("srl s0, t2, t1")
+
+                riscv_lines.append("sd s0, 0(t0)")
+                riscv_lines.append("sd s1, 8(t0)")
+                riscv_lines.append("sd s2, 16(t0)")
+                riscv_lines.append("sd s3, 24(t0)")
+                riscv_lines.append("addi s3, s3, 1")
+                riscv_lines.append("j sar_done")
+
+                # If shift ≥ 64
+                riscv_lines.append("sar_edge:")
+                riscv_lines.append("sltu t6, t5, zero     # if t5 < 0 → set all bits to 1")
+                riscv_lines.append("beqz t6, sar_zero")
+                riscv_lines.append("li t6, -1")
+                riscv_lines.append("sd t6, 0(t0)")
+                riscv_lines.append("sd t6, 8(t0)")
+                riscv_lines.append("sd t6, 16(t0)")
+                riscv_lines.append("sd t6, 24(t0)")
+                riscv_lines.append("j sar_done")
+                riscv_lines.append("sar_zero:")
+                riscv_lines.append("sd zero, 0(t0)")
+                riscv_lines.append("sd zero, 8(t0)")
+                riscv_lines.append("sd zero, 16(t0)")
+                riscv_lines.append("sd zero, 24(t0)")
+                riscv_lines.append("sar_done:")
+                riscv_lines.append("addi s3, s3, 1")
                 continue
 
             elif opcode.startswith("DUP"):
