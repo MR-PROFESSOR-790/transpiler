@@ -17,10 +17,11 @@ class StackEmulator:
         self.initialize_memory_model()
 
     def initialize_memory_model(self):
+        """Initialize the memory model within the compilation context."""
         if not hasattr(self.context, "memory"):
             self.context.memory = {
-                "base": "MEM_BASE",
-                "size": 0,
+                "base": 0x80000000,  # Use actual address instead of symbolic
+                "size": 4096,        # Initial 4KB
                 "allocated": {},
                 "last_used": 0
             }

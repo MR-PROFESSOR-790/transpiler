@@ -38,9 +38,9 @@
 .globl mstore8
 
 # Memory layout constants (use real registers instead of macros)
-.set MEM_BASE, 0x10000000       # Base of simulated EVM memory
-.set CALLDATA_BASE, 0x20000000   # Base of calldata
-.set STACK_BASE, 0x30000000      # Simulated stack base
+.set MEM_BASE, 0x80000000       # Move to higher memory
+.set CALLDATA_BASE, 0x80010000  # After main memory
+.set STACK_BASE, 0x80020000     # After calldata
 
 # Register aliases (must use actual registers)
 .set GAS_REGISTER, s1            # Track remaining gas
@@ -52,6 +52,36 @@
 # ---------------------------
 
 _start:
+    # Initialize stack pointer to a valid memory region
+    li sp, STACK_BASE
+    li t0, 2048        # Split 4096 into two additions
+    add sp, sp, t0     # Add first 2048
+    add sp, sp, t0     # Add second 2048
+
+    # Initialize memory base register
+    li s0, MEM_BASE
+
+    # Initialize gas counter
+    li s1, 1000000     # Start with 1M gas
+
+    # Clear memory region
+    li t0, MEM_BASE
+    li t1, 0
+    li t2, 2048        # First half of 4KB
+1:
+    sd t1, 0(t0)
+    addi t0, t0, 8
+    addi t2, t2, -8
+    bnez t2, 1b
+
+    li t2, 2048        # Second half of 4KB
+2:
+    sd t1, 0(t0)
+    addi t0, t0, 8
+    addi t2, t2, -8
+    bnez t2, 2b
+
+    # Now call the EVM entry point
     jal ra, evm_entry
     j _exit
 
