@@ -287,7 +287,7 @@ li a0, 3
 jal ra, deduct_gas
 la a0, a0
 la a1, a1
-jal ra, codecopy
+jal ra, evm_codecopy
 # PUSH0 
 li a0, 3
 jal ra, deduct_gas

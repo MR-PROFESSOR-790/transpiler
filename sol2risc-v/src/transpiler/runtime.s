@@ -10,7 +10,7 @@
 .globl get_call_value
 .globl evm_revert
 .globl evm_return
-.globl codecopy
+.globl evm_codecopy
 .globl memcpy
 .globl keccak256
 .globl add256
