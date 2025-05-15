@@ -285,9 +285,7 @@ addi s3, s3, 1          # Increment stack pointer
 # CODECOPY 
 li a0, 3
 jal ra, deduct_gas
-la a0, a0
-la a1, a1
-jal ra, evm_codecopy
+# Unknown runtime function: codecopy
 # PUSH0 
 li a0, 3
 jal ra, deduct_gas
