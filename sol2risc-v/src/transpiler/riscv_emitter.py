@@ -269,8 +269,8 @@ class RiscvEmitter:
                 riscv_lines.append("ld t4, 24(t0)")
                 riscv_lines.append("ld t5, 32(t0)")
                 riscv_lines.append("ld t6, 40(t0)")
-                riscv_lines.append("ld t7, 48(t0)")
-                riscv_lines.append("ld t8, 56(t0)")
+                riscv_lines.append("ld a0, 48(t0)")
+                riscv_lines.append("ld a1, 56(t0)")
 
                 riscv_lines.append("and s0, t1, t5")
                 riscv_lines.append("and s1, t2, t6")
