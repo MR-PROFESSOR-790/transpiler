@@ -274,8 +274,8 @@ class RiscvEmitter:
 
                 riscv_lines.append("and s0, t1, t5")
                 riscv_lines.append("and s1, t2, t6")
-                riscv_lines.append("and s2, t3, t7")
-                riscv_lines.append("and s3, t4, t8")
+                riscv_lines.append("and s2, t3, a0")
+                riscv_lines.append("and s3, t4, a1")
 
                 riscv_lines.append("sd s0, 0(t0)")
                 riscv_lines.append("sd s1, 8(t0)")
@@ -295,13 +295,13 @@ class RiscvEmitter:
                 riscv_lines.append("ld t4, 24(t0)")
                 riscv_lines.append("ld t5, 32(t0)")
                 riscv_lines.append("ld t6, 40(t0)")
-                riscv_lines.append("ld t7, 48(t0)")
-                riscv_lines.append("ld t8, 56(t0)")
+                riscv_lines.append("ld a0, 48(t0)")
+                riscv_lines.append("ld a1, 56(t0)")
 
                 riscv_lines.append("or s0, t1, t5")
                 riscv_lines.append("or s1, t2, t6")
-                riscv_lines.append("or s2, t3, t7")
-                riscv_lines.append("or s3, t4, t8")
+                riscv_lines.append("or s2, t3, a0")
+                riscv_lines.append("or s3, t4, a1")
 
                 riscv_lines.append("sd s0, 0(t0)")
                 riscv_lines.append("sd s1, 8(t0)")
@@ -321,13 +321,13 @@ class RiscvEmitter:
                 riscv_lines.append("ld t4, 24(t0)")
                 riscv_lines.append("ld t5, 32(t0)")
                 riscv_lines.append("ld t6, 40(t0)")
-                riscv_lines.append("ld t7, 48(t0)")
-                riscv_lines.append("ld t8, 56(t0)")
+                riscv_lines.append("ld a0, 48(t0)")
+                riscv_lines.append("ld a1, 56(t0)")
 
                 riscv_lines.append("xor s0, t1, t5")
                 riscv_lines.append("xor s1, t2, t6")
-                riscv_lines.append("xor s2, t3, t7")
-                riscv_lines.append("xor s3, t4, t8")
+                riscv_lines.append("xor s2, t3, a0")
+                riscv_lines.append("xor s3, t4, a1")
 
                 riscv_lines.append("sd s0, 0(t0)")
                 riscv_lines.append("sd s1, 8(t0)")
@@ -419,19 +419,19 @@ class RiscvEmitter:
 
                 # Shift
                 riscv_lines.append("srl s3, t5, t1")
-                riscv_lines.append("sub a9, t6, t1")
-                riscv_lines.append("sll s4, t4, a0")
-                riscv_lines.append("or  s3, s3, s4")   # out3
+                riscv_lines.append("sub a1, t6, t1")
+                riscv_lines.append("sll a2, t4, a1")
+                riscv_lines.append("or  s3, s3, a2")   # out3
 
                 riscv_lines.append("srl s2, t4, t1")
-                riscv_lines.append("sub a0, t6, t1")
-                riscv_lines.append("sll s4, t3, a0")
-                riscv_lines.append("or  s2, s2, s4")   # out2
+                riscv_lines.append("sub a1, t6, t1")
+                riscv_lines.append("sll a2, t3, a1")
+                riscv_lines.append("or  s2, s2, a2")   # out2
 
                 riscv_lines.append("srl s1, t3, t1")
-                riscv_lines.append("sub a0, t6, t1")
-                riscv_lines.append("sll s4, t2, a0")
-                riscv_lines.append("or  s1, s1, s4")   # out1
+                riscv_lines.append("sub a1, t6, t1")
+                riscv_lines.append("sll a2, t2, a1")
+                riscv_lines.append("or  s1, s1, a2")   # out1
 
                 riscv_lines.append("srl s0, t2, t1")   # out0
 
@@ -467,19 +467,19 @@ class RiscvEmitter:
 
     # Shift same as SHR
                 riscv_lines.append("sra s3, t5, t1")     # sign extend MSB
-                riscv_lines.append("sub a0, t6, t1")
-                riscv_lines.append("sll s4, t4, a0")
-                riscv_lines.append("or  s3, s3, s4")
+                riscv_lines.append("sub a1, t6, t1")
+                riscv_lines.append("sll a2, t4, a1")
+                riscv_lines.append("or  s3, s3, a2")
 
                 riscv_lines.append("srl s2, t4, t1")
-                riscv_lines.append("sub a0, t6, t1")
-                riscv_lines.append("sll s4, t3, a0")
-                riscv_lines.append("or  s2, s2, s4")
+                riscv_lines.append("sub a1, t6, t1")
+                riscv_lines.append("sll a2, t3, a1")
+                riscv_lines.append("or  s2, s2, a2")
 
                 riscv_lines.append("srl s1, t3, t1")
-                riscv_lines.append("sub a0, t6, t1")
-                riscv_lines.append("sll s4, t2, a0")
-                riscv_lines.append("or  s1, s1, s4")
+                riscv_lines.append("sub a1, t6, t1")
+                riscv_lines.append("sll a2, t2, a1")
+                riscv_lines.append("or  s1, s1, a2")
 
                 riscv_lines.append("srl s0, t2, t1")
 
@@ -540,8 +540,8 @@ class RiscvEmitter:
                 riscv_lines.append("ld t4, 24(t0)          # B limb3")
                 riscv_lines.append("ld t5, 32(t0)          # A limb0")
                 riscv_lines.append("ld t6, 40(t0)          # A limb1")
-                riscv_lines.append("ld t7, 48(t0)          # A limb2")
-                riscv_lines.append("ld t8, 56(t0)          # A limb3")
+                riscv_lines.append("ld a0, 48(t0)          # A limb2")
+                riscv_lines.append("ld a1, 56(t0)          # A limb3")
 
                 # Perform limb-wise ADD with carry
                 riscv_lines.append("add s4, t1, t5         # sum0")
@@ -551,18 +551,18 @@ class RiscvEmitter:
                 riscv_lines.append("add s6, s6, s5         # sum1 += carry0")
                 riscv_lines.append("sltu s5, s6, t2        # carry1")
 
-                riscv_lines.append("add s7, t3, t7         # sum2 = b2 + a2")
-                riscv_lines.append("add s7, s7, s5         # sum2 += carry1")
-                riscv_lines.append("sltu s5, s7, t3        # carry2")
+                riscv_lines.append("add s10, t3, a0         # sum2 = b2 + a2")
+                riscv_lines.append("add s10, s10, s5         # sum2 += carry1")
+                riscv_lines.append("sltu s5, s10, t3        # carry2")
 
-                riscv_lines.append("add s8, t4, t8         # sum3 = b3 + a3")
-                riscv_lines.append("add s8, s8, s5         # sum3 += carry2")
+                riscv_lines.append("add s11, t4, a1         # sum3 = b3 + a3")
+                riscv_lines.append("add s11, s11, s5         # sum3 += carry2")
 
                 # Store result back to stack
                 riscv_lines.append("sd s4, 0(t0)           # result limb0")
                 riscv_lines.append("sd s6, 8(t0)           # result limb1")
-                riscv_lines.append("sd s7, 16(t0)          # result limb2")
-                riscv_lines.append("sd s8, 24(t0)          # result limb3")
+                riscv_lines.append("sd s10, 16(t0)          # result limb2")
+                riscv_lines.append("sd s11, 24(t0)          # result limb3")
 
                 riscv_lines.append("addi s3, s3, 1         # Push result")
                 continue
@@ -582,8 +582,8 @@ class RiscvEmitter:
 
                 riscv_lines.append("ld t5, 0(t0)       # B limb0")
                 riscv_lines.append("ld t6, 8(t0)       # B limb1")
-                riscv_lines.append("ld t7, 16(t0)      # B limb2")
-                riscv_lines.append("ld t8, 24(t0)      # B limb3")
+                riscv_lines.append("ld a0, 16(t0)      # B limb2")
+                riscv_lines.append("ld a1, 24(t0)      # B limb3")
 
                 # Compute: result = A * B, keep only lowest 4 limbs (128-bit)
                 # Use intermediate result registers s0–s3
@@ -627,8 +627,8 @@ class RiscvEmitter:
                 riscv_lines.append("ld t4, 24(t0)          # B limb3")
                 riscv_lines.append("ld t5, 32(t0)          # A limb0")
                 riscv_lines.append("ld t6, 40(t0)          # A limb1")
-                riscv_lines.append("ld t7, 48(t0)          # A limb2")
-                riscv_lines.append("ld t8, 56(t0)          # A limb3")
+                riscv_lines.append("ld a0, 48(t0)          # A limb2")
+                riscv_lines.append("ld a1, 56(t0)          # A limb3")
 
                 riscv_lines.append("sub s4, t5, t1         # res0 = a0 - b0")
                 riscv_lines.append("sltu s5, t5, t1        # borrow0 = a0 < b0")
@@ -636,22 +636,22 @@ class RiscvEmitter:
                 riscv_lines.append("sub s6, t6, t2         # res1 = a1 - b1")
                 riscv_lines.append("sub s6, s6, s5         # res1 -= borrow0")
                 riscv_lines.append("sltu s5, t6, t2        # borrow1 = a1 < b1")
-                riscv_lines.append("sltu a0, s6, s5")
-                riscv_lines.append("or   s5, s5, a0")
+                riscv_lines.append("sltu a2, s6, s5")
+                riscv_lines.append("or   s5, s5, a2")
 
-                riscv_lines.append("sub s7, t7, t3")
-                riscv_lines.append("sub s7, s7, s5")
-                riscv_lines.append("sltu s5, t7, t3")
-                riscv_lines.append("sltu a0, s7, s5")
-                riscv_lines.append("or   s5, s5, a0")
+                riscv_lines.append("sub s10, a0, t3")
+                riscv_lines.append("sub s10, s10, s5")
+                riscv_lines.append("sltu s5, a0, t3")
+                riscv_lines.append("sltu a2, s10, s5")
+                riscv_lines.append("or   s5, s5, a2")
 
-                riscv_lines.append("sub s8, t8, t4")
-                riscv_lines.append("sub s8, s8, s5")
+                riscv_lines.append("sub s11, a1, t4")
+                riscv_lines.append("sub s11, s11, s5")
 
                 riscv_lines.append("sd s4, 0(t0)")
                 riscv_lines.append("sd s6, 8(t0)")
-                riscv_lines.append("sd s7, 16(t0)")
-                riscv_lines.append("sd s8, 24(t0)")
+                riscv_lines.append("sd s10, 16(t0)")
+                riscv_lines.append("sd s11, 24(t0)")
 
                 riscv_lines.append("addi s3, s3, 1")
                 continue
@@ -782,14 +782,14 @@ class RiscvEmitter:
 
                 riscv_lines.append("ld t5, 32(t0)")
                 riscv_lines.append("ld t6, 40(t0)")
-                riscv_lines.append("ld t7, 48(t0)")
-                riscv_lines.append("ld t8, 56(t0)")
+                riscv_lines.append("ld a0, 48(t0)")
+                riscv_lines.append("ld a1, 56(t0)")
 
                 # XOR each limb and OR the results
                 riscv_lines.append("xor s0, t1, t5")
                 riscv_lines.append("xor s1, t2, t6")
-                riscv_lines.append("xor s2, t3, t7")
-                riscv_lines.append("xor s3, t4, t8")
+                riscv_lines.append("xor s2, t3, a0")
+                riscv_lines.append("xor s3, t4, a1")
                 riscv_lines.append("or  s0, s0, s1")
                 riscv_lines.append("or  s0, s0, s2")
                 riscv_lines.append("or  s0, s0, s3")

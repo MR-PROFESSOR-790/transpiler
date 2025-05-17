@@ -472,17 +472,17 @@ ld t5,  32(t0)
 li t6,  64
 bge t1,  t6,  shr_zero
 srl s3,  t5,  t1
-sub a9,  t6,  t1
-sll s4,  t4,  a0
-or  s3,  s3,  s4
+sub a1,  t6,  t1
+sll a2,  t4,  a1
+or  s3,  s3,  a2
 srl s2,  t4,  t1
-sub a0,  t6,  t1
-sll s4,  t3,  a0
-or  s2,  s2,  s4
+sub a1,  t6,  t1
+sll a2,  t3,  a1
+or  s2,  s2,  a2
 srl s1,  t3,  t1
-sub a0,  t6,  t1
-sll s4,  t2,  a0
-or  s1,  s1,  s4
+sub a1,  t6,  t1
+sll a2,  t2,  a1
+or  s1,  s1,  a2
 srl s0,  t2,  t1
 sd s0,  0(t0)
 sd s1,  8(t0)
@@ -545,12 +545,12 @@ ld t3,  16(t0)
 ld t4,  24(t0)
 ld t5,  32(t0)
 ld t6,  40(t0)
-ld t7,  48(t0)
-ld t8,  56(t0)
+ld a0,  48(t0)
+ld a1,  56(t0)
 xor s0,  t1,  t5
 xor s1,  t2,  t6
-xor s2,  t3,  t7
-xor s3,  t4,  t8
+xor s2,  t3,  a0
+xor s3,  t4,  a1
 or  s0,  s0,  s1
 or  s0,  s0,  s2
 or  s0,  s0,  s3
@@ -944,26 +944,26 @@ ld t3,  16(t0)         # B limb2
 ld t4,  24(t0)         # B limb3
 ld t5,  32(t0)         # A limb0
 ld t6,  40(t0)         # A limb1
-ld t7,  48(t0)         # A limb2
-ld t8,  56(t0)         # A limb3
+ld a0,  48(t0)         # A limb2
+ld a1,  56(t0)         # A limb3
 sub s4,  t5,  t1         # res0 = a0 - b0
 sltu s5,  t5,  t1        # borrow0 = a0 < b0
 sub s6,  t6,  t2         # res1 = a1 - b1
 sub s6,  s6,  s5         # res1 -= borrow0
 sltu s5,  t6,  t2        # borrow1 = a1 < b1
-sltu a0,  s6,  s5
-or   s5,  s5,  a0
-sub s7,  t7,  t3
-sub s7,  s7,  s5
-sltu s5,  t7,  t3
-sltu a0,  s7,  s5
-or   s5,  s5,  a0
-sub s8,  t8,  t4
-sub s8,  s8,  s5
+sltu a2,  s6,  s5
+or   s5,  s5,  a2
+sub s10,  a0,  t3
+sub s10,  s10,  s5
+sltu s5,  a0,  t3
+sltu a2,  s10,  s5
+or   s5,  s5,  a2
+sub s11,  a1,  t4
+sub s11,  s11,  s5
 sd s4,  0(t0)
 sd s6,  8(t0)
-sd s7,  16(t0)
-sd s8,  24(t0)
+sd s10,  16(t0)
+sd s11,  24(t0)
 addi s3,  s3,  1
 # SWAP1 
 li a0,  4
@@ -1436,22 +1436,22 @@ ld t3,  16(t0)         # B limb2
 ld t4,  24(t0)         # B limb3
 ld t5,  32(t0)         # A limb0
 ld t6,  40(t0)         # A limb1
-ld t7,  48(t0)         # A limb2
-ld t8,  56(t0)         # A limb3
+ld a0,  48(t0)         # A limb2
+ld a1,  56(t0)         # A limb3
 add s4,  t1,  t5         # sum0
 sltu s5,  s4,  t1        # carry0 = s4 < t1
 add s6,  t2,  t6         # sum1 = b1 + a1
 add s6,  s6,  s5         # sum1 += carry0
 sltu s5,  s6,  t2        # carry1
-add s7,  t3,  t7         # sum2 = b2 + a2
-add s7,  s7,  s5         # sum2 += carry1
-sltu s5,  s7,  t3        # carry2
-add s8,  t4,  t8         # sum3 = b3 + a3
-add s8,  s8,  s5         # sum3 += carry2
+add s10,  t3,  a0         # sum2 = b2 + a2
+add s10,  s10,  s5         # sum2 += carry1
+sltu s5,  s10,  t3        # carry2
+add s11,  t4,  a1         # sum3 = b3 + a3
+add s11,  s11,  s5         # sum3 += carry2
 sd s4,  0(t0)          # result limb0
 sd s6,  8(t0)          # result limb1
-sd s7,  16(t0)         # result limb2
-sd s8,  24(t0)         # result limb3
+sd s10,  16(t0)         # result limb2
+sd s11,  24(t0)         # result limb3
 addi s3,  s3,  1         # Push result
 # SWAP1 
 li a0,  4
@@ -1550,22 +1550,22 @@ ld t3,  16(t0)         # B limb2
 ld t4,  24(t0)         # B limb3
 ld t5,  32(t0)         # A limb0
 ld t6,  40(t0)         # A limb1
-ld t7,  48(t0)         # A limb2
-ld t8,  56(t0)         # A limb3
+ld a0,  48(t0)         # A limb2
+ld a1,  56(t0)         # A limb3
 add s4,  t1,  t5         # sum0
 sltu s5,  s4,  t1        # carry0 = s4 < t1
 add s6,  t2,  t6         # sum1 = b1 + a1
 add s6,  s6,  s5         # sum1 += carry0
 sltu s5,  s6,  t2        # carry1
-add s7,  t3,  t7         # sum2 = b2 + a2
-add s7,  s7,  s5         # sum2 += carry1
-sltu s5,  s7,  t3        # carry2
-add s8,  t4,  t8         # sum3 = b3 + a3
-add s8,  s8,  s5         # sum3 += carry2
+add s10,  t3,  a0         # sum2 = b2 + a2
+add s10,  s10,  s5         # sum2 += carry1
+sltu s5,  s10,  t3        # carry2
+add s11,  t4,  a1         # sum3 = b3 + a3
+add s11,  s11,  s5         # sum3 += carry2
 sd s4,  0(t0)          # result limb0
 sd s6,  8(t0)          # result limb1
-sd s7,  16(t0)         # result limb2
-sd s8,  24(t0)         # result limb3
+sd s10,  16(t0)         # result limb2
+sd s11,  24(t0)         # result limb3
 addi s3,  s3,  1         # Push result
 # DUP5 
 li a0,  8
