@@ -27,6 +27,7 @@ class RiscvEmitter:
         self.errors = []
         self.runtime_signatures = {}
         self.jumpdest_counter  = 0
+        self.jumpi_counter = 0
 
     def set_context(self, context):
         """Set compilation context."""
@@ -374,13 +375,16 @@ class RiscvEmitter:
 
                 # Shift each limb
                 riscv_lines.append("sll s0, t2, t1")  # out0 = lo << s
-                riscv_lines.append("srl s1, t2, sub t6, t1")
+                riscv_lines.append("sub t0, t6, t1")
+                riscv_lines.append("srl s1, t2, t0")
                 riscv_lines.append("sll s2, t3, t1")
                 riscv_lines.append("or  s1, s1, s2")   # out1 = (lo >> (64-s)) | (mid << s)
-                riscv_lines.append("srl s2, t3, sub t6, t1")
+                riscv_lines.append("sub t0, t6, t1")
+                riscv_lines.append("srl s2, t3, t0")
                 riscv_lines.append("sll s3, t4, t1")
                 riscv_lines.append("or  s2, s2, s3")   # out2
-                riscv_lines.append("srl s3, t4, sub t6, t1")
+                riscv_lines.append("sub t0, t6, t1")
+                riscv_lines.append("srl s3, t4, t0")
                 riscv_lines.append("sll s4, t5, t1")
                 riscv_lines.append("or  s3, s3, s4")   # out3
 
@@ -415,15 +419,18 @@ class RiscvEmitter:
 
                 # Shift
                 riscv_lines.append("srl s3, t5, t1")
-                riscv_lines.append("sll s4, t4, sub t6, t1")
+                riscv_lines.append("sub a9, t6, t1")
+                riscv_lines.append("sll s4, t4, a0")
                 riscv_lines.append("or  s3, s3, s4")   # out3
 
                 riscv_lines.append("srl s2, t4, t1")
-                riscv_lines.append("sll s4, t3, sub t6, t1")
+                riscv_lines.append("sub a0, t6, t1")
+                riscv_lines.append("sll s4, t3, a0")
                 riscv_lines.append("or  s2, s2, s4")   # out2
 
                 riscv_lines.append("srl s1, t3, t1")
-                riscv_lines.append("sll s4, t2, sub t6, t1")
+                riscv_lines.append("sub a0, t6, t1")
+                riscv_lines.append("sll s4, t2, a0")
                 riscv_lines.append("or  s1, s1, s4")   # out1
 
                 riscv_lines.append("srl s0, t2, t1")   # out0
@@ -458,17 +465,20 @@ class RiscvEmitter:
                 riscv_lines.append("li t6, 64")
                 riscv_lines.append("bge t1, t6, sar_edge")
 
-                # Shift same as SHR
+    # Shift same as SHR
                 riscv_lines.append("sra s3, t5, t1")     # sign extend MSB
-                riscv_lines.append("sll s4, t4, sub t6, t1")
+                riscv_lines.append("sub a0, t6, t1")
+                riscv_lines.append("sll s4, t4, a0")
                 riscv_lines.append("or  s3, s3, s4")
 
                 riscv_lines.append("srl s2, t4, t1")
-                riscv_lines.append("sll s4, t3, sub t6, t1")
+                riscv_lines.append("sub a0, t6, t1")
+                riscv_lines.append("sll s4, t3, a0")
                 riscv_lines.append("or  s2, s2, s4")
 
                 riscv_lines.append("srl s1, t3, t1")
-                riscv_lines.append("sll s4, t2, sub t6, t1")
+                riscv_lines.append("sub a0, t6, t1")
+                riscv_lines.append("sll s4, t2, a0")
                 riscv_lines.append("or  s1, s1, s4")
 
                 riscv_lines.append("srl s0, t2, t1")
@@ -480,7 +490,6 @@ class RiscvEmitter:
                 riscv_lines.append("addi s3, s3, 1")
                 riscv_lines.append("j sar_done")
 
-                # If shift ≥ 64
                 riscv_lines.append("sar_edge:")
                 riscv_lines.append("sltu t6, t5, zero     # if t5 < 0 → set all bits to 1")
                 riscv_lines.append("beqz t6, sar_zero")
@@ -662,20 +671,30 @@ class RiscvEmitter:
                 continue
 
             elif opcode == "JUMPI":
-                index = instr.get('index', 0)
-                riscv_lines.append(f"# JUMPI - conditional jump if cond ≠ 0")
+                riscv_lines.append("# JUMPI - conditional jump if cond ≠ 0")
+
+    # Deduct gas cost
+                gas_line = self.emit_gas_cost(opcode)
+                if gas_line:
+                    riscv_lines.append(gas_line)
+
                 riscv_lines.append("addi s3, s3, -2")
                 riscv_lines.append("slli t0, s3, 5")
                 riscv_lines.append("add  t0, s2, t0")
                 riscv_lines.append("ld   t1, 0(t0)         # jump target")
                 riscv_lines.append("ld   t2, 8(t0)         # condition")
-                riscv_lines.append(f"beqz t2, jumpi_skip_{index}")
+
+                label_id = self.jumpi_counter
+                self.jumpi_counter += 1
+
+                riscv_lines.append(f"beqz t2, jumpi_skip_{label_id}")
                 riscv_lines.append("slli t1, t1, 2")
                 riscv_lines.append("la   t3, jumpdest_table")
                 riscv_lines.append("add  t3, t3, t1")
                 riscv_lines.append("lw   t4, 0(t3)         # load label")
                 riscv_lines.append("jr   t4")
-                riscv_lines.append(f"jumpi_skip_{index}:")
+                riscv_lines.append(f"jumpi_skip_{label_id}:")
+
                 continue
 
             # Memory operations
@@ -1004,6 +1023,40 @@ class RiscvEmitter:
 
         lines.append(f"jal ra, {runtime_function}")
         return lines
+    def _finalize_lines(self, lines: list) -> list:
+           
+        fixed_lines = []
+        for line in lines:
+            if not line or line.lstrip().startswith('#'):
+                fixed_lines.append(line)
+                continue
+
+        # Fix comma spacing
+            line = line.replace(",", ", ")
+
+        # Fix register and memory access spacing
+            line = line.replace(" (", "(").replace("( ", "(")
+            line = line.replace(" )", ")").replace(") ", ")")
+
+        # Replace invalid shift expressions like `sll ..., sub ...`
+            if any(op in line for op in ["sll", "srl", "sra"]):
+                parts = line.split(",")
+                dest = parts[0].strip()
+                src = parts[1].strip()
+                shift_expr = ",".join(parts[2:]).strip()
+
+                if "sub" in shift_expr:
+                # Extract registers from `sub a, b`
+                    import re
+                    match = re.search(r"sub\s+(\w+)\s*,\s*(\w+)", shift_expr)
+                    if match:
+                        r1, r2 = match.groups()
+                        line = f"sub t9, {r1}, {r2}\n{dest}, {src}, t9"
+
+            fixed_lines.append(line)
+
+        return fixed_lines
+        
 
     def format_assembly_output(self, assembly_code: list) -> str:
         """
@@ -1031,8 +1084,8 @@ class RiscvEmitter:
         output.append(".section .text")
         output.append("")
 
-        output.extend(assembly_code)
-        return "\n".join(output)
+        output.extend(self._finalize_lines(assembly_code))
+        return "\n".join(output) + "\n"
 
     def write_output_file(self, assembly_code: str, output_file: str):
         """
