@@ -590,12 +590,12 @@ class RiscvEmitter:
                 # Use intermediate result registers s0–s3
                 riscv_lines.append("mul s0, t1, t5     # r0 = a0 * b0")
                 riscv_lines.append("mul s1, t1, t6     # r1 = a0 * b1")
-                riscv_lines.append("mul t9, t2, t5     # + a1 * b0")
-                riscv_lines.append("add s1, s1, t9")
+                riscv_lines.append("mul t7, t2, t5     # + a1 * b0")
+                riscv_lines.append("add s1, s1, t7")
 
-                riscv_lines.append("mul s2, t1, t7     # r2 = a0 * b2")
-                riscv_lines.append("mul t9, t2, t6     # + a1 * b1")
-                riscv_lines.append("add s2, s2, t9")
+                riscv_lines.append("mul s2, t1, t8     # r2 = a0 * b2")
+                riscv_lines.append("mul t7, t2, t5     # + a1 * b1")
+                riscv_lines.append("add s2, s2, t7")
                 riscv_lines.append("mul t9, t3, t5     # + a2 * b0")
                 riscv_lines.append("add s2, s2, t9")
 
