@@ -28,6 +28,7 @@ class RiscvEmitter:
         self.runtime_signatures = {}
         self.jumpdest_counter  = 0
         self.jumpi_counter = 0
+        self.compare_counter = 0
 
     def set_context(self, context):
         """Set compilation context."""
@@ -803,6 +804,8 @@ class RiscvEmitter:
                 continue
             
             elif opcode == "LT":
+                label_id = self.compare_counter
+                self.compare_counter += 1
                 riscv_lines.append("# LT - unsigned 256-bit less-than")
                 riscv_lines.append("addi s3, s3, -2")
                 riscv_lines.append("slli t0, s3, 5")
@@ -812,24 +815,26 @@ class RiscvEmitter:
                 for i, offset in enumerate([56, 48, 40, 32]):
                     riscv_lines.append(f"ld t1, {offset}(t0)   # a limb{3 - i}")
                     riscv_lines.append(f"ld t2, {offset - 32}(t0)  # b limb{3 - i}")
-                    riscv_lines.append("blt t1, t2, lt_true")
-                    riscv_lines.append("bgt t1, t2, lt_false")
-                riscv_lines.append("li s0, 0")
-                riscv_lines.append("j lt_done")
-                riscv_lines.append("lt_true:")
-                riscv_lines.append("li s0, 1")
-                riscv_lines.append("j lt_done")
-                riscv_lines.append("lt_false:")
-                riscv_lines.append("li s0, 0")
-                riscv_lines.append("lt_done:")
-                riscv_lines.append("sd s0, 0(t0)")
-                riscv_lines.append("sd zero, 8(t0)")
-                riscv_lines.append("sd zero, 16(t0)")
-                riscv_lines.append("sd zero, 24(t0)")
-                riscv_lines.append("addi s3, s3, 1")
+                    riscv_lines.append(f"blt t1, t2, lt_true_{label_id}")
+                    riscv_lines.append(f"bgt t1, t2, lt_false_{label_id}")
+                riscv_lines.append(f"li s0, 0")
+                riscv_lines.append(f"j lt_done_{label_id}")
+                riscv_lines.append(f"lt_true_{label_id}:")
+                riscv_lines.append(f"li s0, 1")
+                riscv_lines.append(f"j lt_done_{label_id}")
+                riscv_lines.append(f"lt_false_{label_id}:")
+                riscv_lines.append(f"li s0, 0")
+                riscv_lines.append(f"lt_done_{label_id}:")
+                riscv_lines.append(f"sd s0, 0(t0)")
+                riscv_lines.append(f"sd zero, 8(t0)")
+                riscv_lines.append(f"sd zero, 16(t0)")
+                riscv_lines.append(f"sd zero, 24(t0)")
+                riscv_lines.append(f"addi s3, s3, 1")
                 continue
             
             elif opcode == "GT":
+                label_id = self.compare_counter
+                self.compare_counter +=1
                 riscv_lines.append("# GT - unsigned 256-bit greater-than")
                 riscv_lines.append("addi s3, s3, -2")
                 riscv_lines.append("slli t0, s3, 5")
@@ -838,21 +843,21 @@ class RiscvEmitter:
                 for i, offset in enumerate([56, 48, 40, 32]):
                     riscv_lines.append(f"ld t1, {offset - 32}(t0)   # a limb{3 - i}")
                     riscv_lines.append(f"ld t2, {offset}(t0)        # b limb{3 - i}")
-                    riscv_lines.append("blt t1, t2, gt_true")
-                    riscv_lines.append("bgt t1, t2, gt_false")
-                riscv_lines.append("li s0, 0")
-                riscv_lines.append("j gt_done")
-                riscv_lines.append("gt_true:")
-                riscv_lines.append("li s0, 1")
-                riscv_lines.append("j gt_done")
-                riscv_lines.append("gt_false:")
-                riscv_lines.append("li s0, 0")
-                riscv_lines.append("gt_done:")
-                riscv_lines.append("sd s0, 0(t0)")
-                riscv_lines.append("sd zero, 8(t0)")
-                riscv_lines.append("sd zero, 16(t0)")
-                riscv_lines.append("sd zero, 24(t0)")
-                riscv_lines.append("addi s3, s3, 1")
+                    riscv_lines.append(f"blt t1, t2, gt_true_{label_id}")
+                    riscv_lines.append(f"bgt t1, t2, gt_false_{label_id}")
+                riscv_lines.append(f"li s0, 0")
+                riscv_lines.append(f"j gt_done_{label_id}")
+                riscv_lines.append(f"gt_true_{label_id}:")
+                riscv_lines.append(f"li s0, 1")
+                riscv_lines.append(f"j gt_done_{label_id}")
+                riscv_lines.append(f"gt_false_{label_id}:")
+                riscv_lines.append(f"li s0, 0")
+                riscv_lines.append(f"gt_done_{label_id}:")
+                riscv_lines.append(f"sd s0, 0(t0)")
+                riscv_lines.append(f"sd zero, 8(t0)")
+                riscv_lines.append(f"sd zero, 16(t0)")
+                riscv_lines.append(f"sd zero, 24(t0)")
+                riscv_lines.append(f"addi s3, s3, 1")
                 continue
 
             # External interactions

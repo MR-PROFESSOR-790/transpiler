@@ -254,15 +254,15 @@ jal ra,  deduct_gas
 li a0,  2
 jal ra,  deduct_gas
 addi s3,  s3,  -1    # Decrement stack pointer
-# PUSH2 01c5
+# PUSH2 024d
 li a0,  9
 jal ra,  deduct_gas
-# PUSH 01c5
+# PUSH 024d
 li a0,  6
 jal ra,  deduct_gas
 slli t1,  s3,  5          # Stack offset = s3 * 32
 add  t1,  s2,  t1         # Address = stack base + offset
-li t0,  0x00000000000001c5       # Limb 0(lowest 64 bits)
+li t0,  0x000000000000024d       # Limb 0(lowest 64 bits)
 sd t0,  0(t1)
 li t0,  0x0000000000000000       # Limb 1
 sd t0,  8(t1)
@@ -396,42 +396,42 @@ slli t0,  s3,  5
 add  t0,  s2,  t0
 ld t1,  56(t0)  # a limb3
 ld t2,  24(t0) # b limb3
-blt t1,  t2,  lt_true
-bgt t1,  t2,  lt_false
+blt t1,  t2,  lt_true_0
+bgt t1,  t2,  lt_false_0
 ld t1,  48(t0)  # a limb2
 ld t2,  16(t0) # b limb2
-blt t1,  t2,  lt_true
-bgt t1,  t2,  lt_false
+blt t1,  t2,  lt_true_0
+bgt t1,  t2,  lt_false_0
 ld t1,  40(t0)  # a limb1
 ld t2,  8(t0) # b limb1
-blt t1,  t2,  lt_true
-bgt t1,  t2,  lt_false
+blt t1,  t2,  lt_true_0
+bgt t1,  t2,  lt_false_0
 ld t1,  32(t0)  # a limb0
 ld t2,  0(t0) # b limb0
-blt t1,  t2,  lt_true
-bgt t1,  t2,  lt_false
+blt t1,  t2,  lt_true_0
+bgt t1,  t2,  lt_false_0
 li s0,  0
-j lt_done
-lt_true:
+j lt_done_0
+lt_true_0:
 li s0,  1
-j lt_done
-lt_false:
+j lt_done_0
+lt_false_0:
 li s0,  0
-lt_done:
+lt_done_0:
 sd s0,  0(t0)
 sd zero,  8(t0)
 sd zero,  16(t0)
 sd zero,  24(t0)
 addi s3,  s3,  1
-# PUSH2 0034
+# PUSH2 003f
 li a0,  9
 jal ra,  deduct_gas
-# PUSH 0034
+# PUSH 003f
 li a0,  6
 jal ra,  deduct_gas
 slli t1,  s3,  5          # Stack offset = s3 * 32
 add  t1,  s2,  t1         # Address = stack base + offset
-li t0,  0x0000000000000034       # Limb 0(lowest 64 bits)
+li t0,  0x000000000000003f       # Limb 0(lowest 64 bits)
 sd t0,  0(t1)
 li t0,  0x0000000000000000       # Limb 1
 sd t0,  8(t1)
@@ -599,15 +599,15 @@ sd   zero,  8(t0)
 sd   zero,  16(t0)
 sd   zero,  24(t0)
 addi s3,  s3,  1
-# PUSH2 0038
+# PUSH2 0043
 li a0,  9
 jal ra,  deduct_gas
-# PUSH 0038
+# PUSH 0043
 li a0,  6
 jal ra,  deduct_gas
 slli t1,  s3,  5          # Stack offset = s3 * 32
 add  t1,  s2,  t1         # Address = stack base + offset
-li t0,  0x0000000000000038       # Limb 0(lowest 64 bits)
+li t0,  0x0000000000000043       # Limb 0(lowest 64 bits)
 sd t0,  0(t1)
 li t0,  0x0000000000000000       # Limb 1
 sd t0,  8(t1)
@@ -634,6 +634,104 @@ add  t3,  t3,  t1
 lw   t4,  0(t3)        # load label
 jr   t4
 jumpi_skip_2:
+# DUP1 
+li a0,  4
+jal ra,  deduct_gas
+# DUP1
+addi t0,  s3,  -1       # Index to duplicate
+slli t0,  t0,  5          # Offset = t0 * 32
+add  t0,  s2,  t0         # Src address
+slli t1,  s3,  5          # Dest offset = s3 * 32
+add  t1,  s2,  t1         # Dest address
+ld   t2,  0(t0)         # limb0
+ld   t3,  8(t0)         # limb1
+ld   t4,  16(t0)        # limb2
+ld   t5,  24(t0)        # limb3
+sd   t2,  0(t1)
+sd   t3,  8(t1)
+sd   t4,  16(t1)
+sd   t5,  24(t1)
+addi s3,  s3,  1          # Push duplicate
+# PUSH4 27ee58a6
+li a0,  15
+jal ra,  deduct_gas
+# PUSH 27ee58a6
+li a0,  6
+jal ra,  deduct_gas
+slli t1,  s3,  5          # Stack offset = s3 * 32
+add  t1,  s2,  t1         # Address = stack base + offset
+li t0,  0x0000000027ee58a6       # Limb 0(lowest 64 bits)
+sd t0,  0(t1)
+li t0,  0x0000000000000000       # Limb 1
+sd t0,  8(t1)
+li t0,  0x0000000000000000       # Limb 2
+sd t0,  16(t1)
+li t0,  0x0000000000000000       # Limb 3(highest bits)
+sd t0,  24(t1)
+addi s3,  s3,  1          # Increment stack pointer
+# EQ 
+li a0,  3
+jal ra,  deduct_gas
+# EQ - 256-bit equality check
+addi s3,  s3,  -2
+slli t0,  s3,  5
+add  t0,  s2,  t0
+ld t1,  0(t0)
+ld t2,  8(t0)
+ld t3,  16(t0)
+ld t4,  24(t0)
+ld t5,  32(t0)
+ld t6,  40(t0)
+ld a0,  48(t0)
+ld a1,  56(t0)
+xor s0,  t1,  t5
+xor s1,  t2,  t6
+xor s2,  t3,  a0
+xor s3,  t4,  a1
+or  s0,  s0,  s1
+or  s0,  s0,  s2
+or  s0,  s0,  s3
+seqz s0,  s0            # if all zero => equal
+sd   s0,  0(t0)
+sd   zero,  8(t0)
+sd   zero,  16(t0)
+sd   zero,  24(t0)
+addi s3,  s3,  1
+# PUSH2 0073
+li a0,  9
+jal ra,  deduct_gas
+# PUSH 0073
+li a0,  6
+jal ra,  deduct_gas
+slli t1,  s3,  5          # Stack offset = s3 * 32
+add  t1,  s2,  t1         # Address = stack base + offset
+li t0,  0x0000000000000073       # Limb 0(lowest 64 bits)
+sd t0,  0(t1)
+li t0,  0x0000000000000000       # Limb 1
+sd t0,  8(t1)
+li t0,  0x0000000000000000       # Limb 2
+sd t0,  16(t1)
+li t0,  0x0000000000000000       # Limb 3(highest bits)
+sd t0,  24(t1)
+addi s3,  s3,  1          # Increment stack pointer
+# JUMPI 
+li a0,  10
+jal ra,  deduct_gas
+# JUMPI - conditional jump if cond ≠ 0
+li a0,  10
+jal ra,  deduct_gas
+addi s3,  s3,  -2
+slli t0,  s3,  5
+add  t0,  s2,  t0
+ld   t1,  0(t0)        # jump target
+ld   t2,  8(t0)        # condition
+beqz t2,  jumpi_skip_3
+slli t1,  t1,  2
+la   t3,  jumpdest_table
+add  t3,  t3,  t1
+lw   t4,  0(t3)        # load label
+jr   t4
+jumpi_skip_3:
 # DUP1 
 li a0,  4
 jal ra,  deduct_gas
@@ -697,15 +795,15 @@ sd   zero,  8(t0)
 sd   zero,  16(t0)
 sd   zero,  24(t0)
 addi s3,  s3,  1
-# PUSH2 0068
+# PUSH2 00a3
 li a0,  9
 jal ra,  deduct_gas
-# PUSH 0068
+# PUSH 00a3
 li a0,  6
 jal ra,  deduct_gas
 slli t1,  s3,  5          # Stack offset = s3 * 32
 add  t1,  s2,  t1         # Address = stack base + offset
-li t0,  0x0000000000000068       # Limb 0(lowest 64 bits)
+li t0,  0x00000000000000a3       # Limb 0(lowest 64 bits)
 sd t0,  0(t1)
 li t0,  0x0000000000000000       # Limb 1
 sd t0,  8(t1)
@@ -725,13 +823,13 @@ slli t0,  s3,  5
 add  t0,  s2,  t0
 ld   t1,  0(t0)        # jump target
 ld   t2,  8(t0)        # condition
-beqz t2,  jumpi_skip_3
+beqz t2,  jumpi_skip_4
 slli t1,  t1,  2
 la   t3,  jumpdest_table
 add  t3,  t3,  t1
 lw   t4,  0(t3)        # load label
 jr   t4
-jumpi_skip_3:
+jumpi_skip_4:
 # JUMPDEST 
 li a0,  3
 jal ra,  deduct_gas
@@ -790,15 +888,15 @@ jal ra,  deduct_gas
 jumpdest_3:
 li a0,  3
 jal ra,  deduct_gas
-# PUSH2 0052
+# PUSH2 005d
 li a0,  9
 jal ra,  deduct_gas
-# PUSH 0052
+# PUSH 005d
 li a0,  6
 jal ra,  deduct_gas
 slli t1,  s3,  5          # Stack offset = s3 * 32
 add  t1,  s2,  t1         # Address = stack base + offset
-li t0,  0x0000000000000052       # Limb 0(lowest 64 bits)
+li t0,  0x000000000000005d       # Limb 0(lowest 64 bits)
 sd t0,  0(t1)
 li t0,  0x0000000000000000       # Limb 1
 sd t0,  8(t1)
@@ -957,15 +1055,15 @@ ld t2,  24(t0)
 ld t3,  24(t1)
 sd t3,  24(t0)
 sd t2,  24(t1)
-# PUSH2 004d
+# PUSH2 0058
 li a0,  9
 jal ra,  deduct_gas
-# PUSH 004d
+# PUSH 0058
 li a0,  6
 jal ra,  deduct_gas
 slli t1,  s3,  5          # Stack offset = s3 * 32
 add  t1,  s2,  t1         # Address = stack base + offset
-li t0,  0x000000000000004d       # Limb 0(lowest 64 bits)
+li t0,  0x0000000000000058       # Limb 0(lowest 64 bits)
 sd t0,  0(t1)
 li t0,  0x0000000000000000       # Limb 1
 sd t0,  8(t1)
@@ -1030,15 +1128,15 @@ ld t2,  24(t0)
 ld t3,  24(t1)
 sd t3,  24(t0)
 sd t2,  24(t1)
-# PUSH2 00dc
+# PUSH2 0131
 li a0,  9
 jal ra,  deduct_gas
-# PUSH 00dc
+# PUSH 0131
 li a0,  6
 jal ra,  deduct_gas
 slli t1,  s3,  5          # Stack offset = s3 * 32
 add  t1,  s2,  t1         # Address = stack base + offset
-li t0,  0x00000000000000dc       # Limb 0(lowest 64 bits)
+li t0,  0x0000000000000131       # Limb 0(lowest 64 bits)
 sd t0,  0(t1)
 li t0,  0x0000000000000000       # Limb 1
 sd t0,  8(t1)
@@ -1066,15 +1164,15 @@ jal ra,  deduct_gas
 jumpdest_4:
 li a0,  3
 jal ra,  deduct_gas
-# PUSH2 0086
+# PUSH2 00c1
 li a0,  9
 jal ra,  deduct_gas
-# PUSH 0086
+# PUSH 00c1
 li a0,  6
 jal ra,  deduct_gas
 slli t1,  s3,  5          # Stack offset = s3 * 32
 add  t1,  s2,  t1         # Address = stack base + offset
-li t0,  0x0000000000000086       # Limb 0(lowest 64 bits)
+li t0,  0x00000000000000c1       # Limb 0(lowest 64 bits)
 sd t0,  0(t1)
 li t0,  0x0000000000000000       # Limb 1
 sd t0,  8(t1)
@@ -1137,15 +1235,15 @@ sd   t3,  8(t0)
 sd   t4,  16(t0)
 sd   t5,  24(t0)
 addi s3,  s3,  1
-# PUSH2 005f
+# PUSH2 006a
 li a0,  9
 jal ra,  deduct_gas
-# PUSH 005f
+# PUSH 006a
 li a0,  6
 jal ra,  deduct_gas
 slli t1,  s3,  5          # Stack offset = s3 * 32
 add  t1,  s2,  t1         # Address = stack base + offset
-li t0,  0x000000000000005f       # Limb 0(lowest 64 bits)
+li t0,  0x000000000000006a       # Limb 0(lowest 64 bits)
 sd t0,  0(t1)
 li t0,  0x0000000000000000       # Limb 1
 sd t0,  8(t1)
@@ -1210,15 +1308,15 @@ ld t2,  24(t0)
 ld t3,  24(t1)
 sd t3,  24(t0)
 sd t2,  24(t1)
-# PUSH2 0116
+# PUSH2 016b
 li a0,  9
 jal ra,  deduct_gas
-# PUSH 0116
+# PUSH 016b
 li a0,  6
 jal ra,  deduct_gas
 slli t1,  s3,  5          # Stack offset = s3 * 32
 add  t1,  s2,  t1         # Address = stack base + offset
-li t0,  0x0000000000000116       # Limb 0(lowest 64 bits)
+li t0,  0x000000000000016b       # Limb 0(lowest 64 bits)
 sd t0,  0(t1)
 li t0,  0x0000000000000000       # Limb 1
 sd t0,  8(t1)
@@ -1406,15 +1504,15 @@ jal ra,  deduct_gas
 jumpdest_7:
 li a0,  3
 jal ra,  deduct_gas
-# PUSH2 0070
+# PUSH2 008d
 li a0,  9
 jal ra,  deduct_gas
-# PUSH 0070
+# PUSH 008d
 li a0,  6
 jal ra,  deduct_gas
 slli t1,  s3,  5          # Stack offset = s3 * 32
 add  t1,  s2,  t1         # Address = stack base + offset
-li t0,  0x0000000000000070       # Limb 0(lowest 64 bits)
+li t0,  0x000000000000008d       # Limb 0(lowest 64 bits)
 sd t0,  0(t1)
 li t0,  0x0000000000000000       # Limb 1
 sd t0,  8(t1)
@@ -1423,15 +1521,15 @@ sd t0,  16(t1)
 li t0,  0x0000000000000000       # Limb 3(highest bits)
 sd t0,  24(t1)
 addi s3,  s3,  1          # Increment stack pointer
-# PUSH2 00a0
-li a0,  9
+# PUSH1 04
+li a0,  6
 jal ra,  deduct_gas
-# PUSH 00a0
+# PUSH 04
 li a0,  6
 jal ra,  deduct_gas
 slli t1,  s3,  5          # Stack offset = s3 * 32
 add  t1,  s2,  t1         # Address = stack base + offset
-li t0,  0x00000000000000a0       # Limb 0(lowest 64 bits)
+li t0,  0x0000000000000004       # Limb 0(lowest 64 bits)
 sd t0,  0(t1)
 li t0,  0x0000000000000000       # Limb 1
 sd t0,  8(t1)
@@ -1440,69 +1538,148 @@ sd t0,  16(t1)
 li t0,  0x0000000000000000       # Limb 3(highest bits)
 sd t0,  24(t1)
 addi s3,  s3,  1          # Increment stack pointer
-# JUMP 
-li a0,  8
+# DUP1 
+li a0,  4
 jal ra,  deduct_gas
-# JUMP - unconditional jump to JUMPDEST
-addi s3,  s3,  -1
+# DUP1
+addi t0,  s3,  -1       # Index to duplicate
+slli t0,  t0,  5          # Offset = t0 * 32
+add  t0,  s2,  t0         # Src address
+slli t1,  s3,  5          # Dest offset = s3 * 32
+add  t1,  s2,  t1         # Dest address
+ld   t2,  0(t0)         # limb0
+ld   t3,  8(t0)         # limb1
+ld   t4,  16(t0)        # limb2
+ld   t5,  24(t0)        # limb3
+sd   t2,  0(t1)
+sd   t3,  8(t1)
+sd   t4,  16(t1)
+sd   t5,  24(t1)
+addi s3,  s3,  1          # Push duplicate
+# CALLDATASIZE 
+li a0,  3
+jal ra,  deduct_gas
+# Unimplemented opcode: CALLDATASIZE
+addi s3,  s3,  1 # Adjust stack for unimplemented opcode
+# SUB 
+li a0,  3
+jal ra,  deduct_gas
+# 256-bit SUB (4 limbs)
+addi s3,  s3,  -2
 slli t0,  s3,  5
 add  t0,  s2,  t0
-ld   t1,  0(t0)        # jump target
-slli t1,  t1,  2         # index * 4
-la   t2,  jumpdest_table
-add  t2,  t2,  t1
-lw   t3,  0(t2)        # actual label address
-jr   t3                # jump
-# JUMPDEST 
-li a0,  3
-jal ra,  deduct_gas
-jumpdest_8:
-li a0,  3
-jal ra,  deduct_gas
-# PUSH1 40
-li a0,  6
-jal ra,  deduct_gas
-# PUSH 40
-li a0,  6
-jal ra,  deduct_gas
-slli t1,  s3,  5          # Stack offset = s3 * 32
-add  t1,  s2,  t1         # Address = stack base + offset
-li t0,  0x0000000000000040       # Limb 0(lowest 64 bits)
-sd t0,  0(t1)
-li t0,  0x0000000000000000       # Limb 1
-sd t0,  8(t1)
-li t0,  0x0000000000000000       # Limb 2
-sd t0,  16(t1)
-li t0,  0x0000000000000000       # Limb 3(highest bits)
-sd t0,  24(t1)
-addi s3,  s3,  1          # Increment stack pointer
-# MLOAD 
-li a0,  3
-jal ra,  deduct_gas
-# MLOAD - load 256-bit word from memory
-addi s3,  s3,  -1              # Pop offset
-slli t0,  s3,  5
-add  t0,  s2,  t0
-ld   t1,  0(t0)              # offset
-add  t1,  t1,  s0              # addr = offset + MEM_BASE
-ld   t2,  0(t1)
-ld   t3,  8(t1)
-ld   t4,  16(t1)
-ld   t5,  24(t1)
-sd   t2,  0(t0)              # store back to stack
-sd   t3,  8(t0)
-sd   t4,  16(t0)
-sd   t5,  24(t0)
+ld t1,  0(t0)          # B limb0
+ld t2,  8(t0)          # B limb1
+ld t3,  16(t0)         # B limb2
+ld t4,  24(t0)         # B limb3
+ld t5,  32(t0)         # A limb0
+ld t6,  40(t0)         # A limb1
+ld a0,  48(t0)         # A limb2
+ld a1,  56(t0)         # A limb3
+sub s4,  t5,  t1         # res0 = a0 - b0
+sltu s5,  t5,  t1        # borrow0 = a0 < b0
+sub s6,  t6,  t2         # res1 = a1 - b1
+sub s6,  s6,  s5         # res1 -= borrow0
+sltu s5,  t6,  t2        # borrow1 = a1 < b1
+sltu a2,  s6,  s5
+or   s5,  s5,  a2
+sub s10,  a0,  t3
+sub s10,  s10,  s5
+sltu s5,  a0,  t3
+sltu a2,  s10,  s5
+or   s5,  s5,  a2
+sub s11,  a1,  t4
+sub s11,  s11,  s5
+sd s4,  0(t0)
+sd s6,  8(t0)
+sd s10,  16(t0)
+sd s11,  24(t0)
 addi s3,  s3,  1
-# PUSH2 007d
+# DUP2 
+li a0,  5
+jal ra,  deduct_gas
+# DUP2
+addi t0,  s3,  -2       # Index to duplicate
+slli t0,  t0,  5          # Offset = t0 * 32
+add  t0,  s2,  t0         # Src address
+slli t1,  s3,  5          # Dest offset = s3 * 32
+add  t1,  s2,  t1         # Dest address
+ld   t2,  0(t0)         # limb0
+ld   t3,  8(t0)         # limb1
+ld   t4,  16(t0)        # limb2
+ld   t5,  24(t0)        # limb3
+sd   t2,  0(t1)
+sd   t3,  8(t1)
+sd   t4,  16(t1)
+sd   t5,  24(t1)
+addi s3,  s3,  1          # Push duplicate
+# ADD 
+li a0,  3
+jal ra,  deduct_gas
+# 256-bit ADD (4 limbs)
+addi s3,  s3,  -2        # Pop two 256-bit values
+slli t0,  s3,  5         # Offset = s3 * 32
+add  t0,  s2,  t0        # Stack address for operand A and B
+ld t1,  0(t0)          # B limb0
+ld t2,  8(t0)          # B limb1
+ld t3,  16(t0)         # B limb2
+ld t4,  24(t0)         # B limb3
+ld t5,  32(t0)         # A limb0
+ld t6,  40(t0)         # A limb1
+ld a0,  48(t0)         # A limb2
+ld a1,  56(t0)         # A limb3
+add s4,  t1,  t5         # sum0
+sltu s5,  s4,  t1        # carry0 = s4 < t1
+add s6,  t2,  t6         # sum1 = b1 + a1
+add s6,  s6,  s5         # sum1 += carry0
+sltu s5,  s6,  t2        # carry1
+add s10,  t3,  a0         # sum2 = b2 + a2
+add s10,  s10,  s5         # sum2 += carry1
+sltu s5,  s10,  t3        # carry2
+add s11,  t4,  a1         # sum3 = b3 + a3
+add s11,  s11,  s5         # sum3 += carry2
+sd s4,  0(t0)          # result limb0
+sd s6,  8(t0)          # result limb1
+sd s10,  16(t0)         # result limb2
+sd s11,  24(t0)         # result limb3
+addi s3,  s3,  1         # Push result
+# SWAP1 
+li a0,  4
+jal ra,  deduct_gas
+# SWAP1
+li a0,  3
+jal ra,  deduct_gas
+addi t0,  s3,  -1         # Top index
+addi t1,  s3,  -2     # Swap index
+slli t0,  t0,  5
+slli t1,  t1,  5
+add  t0,  s2,  t0         # Addr1
+add  t1,  s2,  t1         # Addr2
+ld t2,  0(t0)
+ld t3,  0(t1)
+sd t3,  0(t0)
+sd t2,  0(t1)
+ld t2,  8(t0)
+ld t3,  8(t1)
+sd t3,  8(t0)
+sd t2,  8(t1)
+ld t2,  16(t0)
+ld t3,  16(t1)
+sd t3,  16(t0)
+sd t2,  16(t1)
+ld t2,  24(t0)
+ld t3,  24(t1)
+sd t3,  24(t0)
+sd t2,  24(t1)
+# PUSH2 0088
 li a0,  9
 jal ra,  deduct_gas
-# PUSH 007d
+# PUSH 0088
 li a0,  6
 jal ra,  deduct_gas
 slli t1,  s3,  5          # Stack offset = s3 * 32
 add  t1,  s2,  t1         # Address = stack base + offset
-li t0,  0x000000000000007d       # Limb 0(lowest 64 bits)
+li t0,  0x0000000000000088       # Limb 0(lowest 64 bits)
 sd t0,  0(t1)
 li t0,  0x0000000000000000       # Limb 1
 sd t0,  8(t1)
@@ -1567,15 +1744,51 @@ ld t2,  24(t0)
 ld t3,  24(t1)
 sd t3,  24(t0)
 sd t2,  24(t1)
-# PUSH2 0116
+# PUSH2 0131
 li a0,  9
 jal ra,  deduct_gas
-# PUSH 0116
+# PUSH 0131
 li a0,  6
 jal ra,  deduct_gas
 slli t1,  s3,  5          # Stack offset = s3 * 32
 add  t1,  s2,  t1         # Address = stack base + offset
-li t0,  0x0000000000000116       # Limb 0(lowest 64 bits)
+li t0,  0x0000000000000131       # Limb 0(lowest 64 bits)
+sd t0,  0(t1)
+li t0,  0x0000000000000000       # Limb 1
+sd t0,  8(t1)
+li t0,  0x0000000000000000       # Limb 2
+sd t0,  16(t1)
+li t0,  0x0000000000000000       # Limb 3(highest bits)
+sd t0,  24(t1)
+addi s3,  s3,  1          # Increment stack pointer
+# JUMP 
+li a0,  8
+jal ra,  deduct_gas
+# JUMP - unconditional jump to JUMPDEST
+addi s3,  s3,  -1
+slli t0,  s3,  5
+add  t0,  s2,  t0
+ld   t1,  0(t0)        # jump target
+slli t1,  t1,  2         # index * 4
+la   t2,  jumpdest_table
+add  t2,  t2,  t1
+lw   t3,  0(t2)        # actual label address
+jr   t3                # jump
+# JUMPDEST 
+li a0,  3
+jal ra,  deduct_gas
+jumpdest_8:
+li a0,  3
+jal ra,  deduct_gas
+# PUSH2 00db
+li a0,  9
+jal ra,  deduct_gas
+# PUSH 00db
+li a0,  6
+jal ra,  deduct_gas
+slli t1,  s3,  5          # Stack offset = s3 * 32
+add  t1,  s2,  t1         # Address = stack base + offset
+li t0,  0x00000000000000db       # Limb 0(lowest 64 bits)
 sd t0,  0(t1)
 li t0,  0x0000000000000000       # Limb 1
 sd t0,  8(t1)
@@ -1601,6 +1814,150 @@ jr   t3                # jump
 li a0,  3
 jal ra,  deduct_gas
 jumpdest_9:
+li a0,  3
+jal ra,  deduct_gas
+# PUSH1 40
+li a0,  6
+jal ra,  deduct_gas
+# PUSH 40
+li a0,  6
+jal ra,  deduct_gas
+slli t1,  s3,  5          # Stack offset = s3 * 32
+add  t1,  s2,  t1         # Address = stack base + offset
+li t0,  0x0000000000000040       # Limb 0(lowest 64 bits)
+sd t0,  0(t1)
+li t0,  0x0000000000000000       # Limb 1
+sd t0,  8(t1)
+li t0,  0x0000000000000000       # Limb 2
+sd t0,  16(t1)
+li t0,  0x0000000000000000       # Limb 3(highest bits)
+sd t0,  24(t1)
+addi s3,  s3,  1          # Increment stack pointer
+# MLOAD 
+li a0,  3
+jal ra,  deduct_gas
+# MLOAD - load 256-bit word from memory
+addi s3,  s3,  -1              # Pop offset
+slli t0,  s3,  5
+add  t0,  s2,  t0
+ld   t1,  0(t0)              # offset
+add  t1,  t1,  s0              # addr = offset + MEM_BASE
+ld   t2,  0(t1)
+ld   t3,  8(t1)
+ld   t4,  16(t1)
+ld   t5,  24(t1)
+sd   t2,  0(t0)              # store back to stack
+sd   t3,  8(t0)
+sd   t4,  16(t0)
+sd   t5,  24(t0)
+addi s3,  s3,  1
+# PUSH2 009a
+li a0,  9
+jal ra,  deduct_gas
+# PUSH 009a
+li a0,  6
+jal ra,  deduct_gas
+slli t1,  s3,  5          # Stack offset = s3 * 32
+add  t1,  s2,  t1         # Address = stack base + offset
+li t0,  0x000000000000009a       # Limb 0(lowest 64 bits)
+sd t0,  0(t1)
+li t0,  0x0000000000000000       # Limb 1
+sd t0,  8(t1)
+li t0,  0x0000000000000000       # Limb 2
+sd t0,  16(t1)
+li t0,  0x0000000000000000       # Limb 3(highest bits)
+sd t0,  24(t1)
+addi s3,  s3,  1          # Increment stack pointer
+# SWAP2 
+li a0,  5
+jal ra,  deduct_gas
+# SWAP2
+li a0,  3
+jal ra,  deduct_gas
+addi t0,  s3,  -1         # Top index
+addi t1,  s3,  -3     # Swap index
+slli t0,  t0,  5
+slli t1,  t1,  5
+add  t0,  s2,  t0         # Addr1
+add  t1,  s2,  t1         # Addr2
+ld t2,  0(t0)
+ld t3,  0(t1)
+sd t3,  0(t0)
+sd t2,  0(t1)
+ld t2,  8(t0)
+ld t3,  8(t1)
+sd t3,  8(t0)
+sd t2,  8(t1)
+ld t2,  16(t0)
+ld t3,  16(t1)
+sd t3,  16(t0)
+sd t2,  16(t1)
+ld t2,  24(t0)
+ld t3,  24(t1)
+sd t3,  24(t0)
+sd t2,  24(t1)
+# SWAP1 
+li a0,  4
+jal ra,  deduct_gas
+# SWAP1
+li a0,  3
+jal ra,  deduct_gas
+addi t0,  s3,  -1         # Top index
+addi t1,  s3,  -2     # Swap index
+slli t0,  t0,  5
+slli t1,  t1,  5
+add  t0,  s2,  t0         # Addr1
+add  t1,  s2,  t1         # Addr2
+ld t2,  0(t0)
+ld t3,  0(t1)
+sd t3,  0(t0)
+sd t2,  0(t1)
+ld t2,  8(t0)
+ld t3,  8(t1)
+sd t3,  8(t0)
+sd t2,  8(t1)
+ld t2,  16(t0)
+ld t3,  16(t1)
+sd t3,  16(t0)
+sd t2,  16(t1)
+ld t2,  24(t0)
+ld t3,  24(t1)
+sd t3,  24(t0)
+sd t2,  24(t1)
+# PUSH2 016b
+li a0,  9
+jal ra,  deduct_gas
+# PUSH 016b
+li a0,  6
+jal ra,  deduct_gas
+slli t1,  s3,  5          # Stack offset = s3 * 32
+add  t1,  s2,  t1         # Address = stack base + offset
+li t0,  0x000000000000016b       # Limb 0(lowest 64 bits)
+sd t0,  0(t1)
+li t0,  0x0000000000000000       # Limb 1
+sd t0,  8(t1)
+li t0,  0x0000000000000000       # Limb 2
+sd t0,  16(t1)
+li t0,  0x0000000000000000       # Limb 3(highest bits)
+sd t0,  24(t1)
+addi s3,  s3,  1          # Increment stack pointer
+# JUMP 
+li a0,  8
+jal ra,  deduct_gas
+# JUMP - unconditional jump to JUMPDEST
+addi s3,  s3,  -1
+slli t0,  s3,  5
+add  t0,  s2,  t0
+ld   t1,  0(t0)        # jump target
+slli t1,  t1,  2         # index * 4
+la   t2,  jumpdest_table
+add  t2,  t2,  t1
+lw   t3,  0(t2)        # actual label address
+jr   t3                # jump
+# JUMPDEST 
+li a0,  3
+jal ra,  deduct_gas
+jumpdest_10:
 li a0,  3
 jal ra,  deduct_gas
 # PUSH1 40
@@ -1760,7 +2117,364 @@ jal  ra,  evm_return    # call runtime return function
 # JUMPDEST 
 li a0,  3
 jal ra,  deduct_gas
-jumpdest_10:
+jumpdest_11:
+li a0,  3
+jal ra,  deduct_gas
+# PUSH2 00ab
+li a0,  9
+jal ra,  deduct_gas
+# PUSH 00ab
+li a0,  6
+jal ra,  deduct_gas
+slli t1,  s3,  5          # Stack offset = s3 * 32
+add  t1,  s2,  t1         # Address = stack base + offset
+li t0,  0x00000000000000ab       # Limb 0(lowest 64 bits)
+sd t0,  0(t1)
+li t0,  0x0000000000000000       # Limb 1
+sd t0,  8(t1)
+li t0,  0x0000000000000000       # Limb 2
+sd t0,  16(t1)
+li t0,  0x0000000000000000       # Limb 3(highest bits)
+sd t0,  24(t1)
+addi s3,  s3,  1          # Increment stack pointer
+# PUSH2 00f5
+li a0,  9
+jal ra,  deduct_gas
+# PUSH 00f5
+li a0,  6
+jal ra,  deduct_gas
+slli t1,  s3,  5          # Stack offset = s3 * 32
+add  t1,  s2,  t1         # Address = stack base + offset
+li t0,  0x00000000000000f5       # Limb 0(lowest 64 bits)
+sd t0,  0(t1)
+li t0,  0x0000000000000000       # Limb 1
+sd t0,  8(t1)
+li t0,  0x0000000000000000       # Limb 2
+sd t0,  16(t1)
+li t0,  0x0000000000000000       # Limb 3(highest bits)
+sd t0,  24(t1)
+addi s3,  s3,  1          # Increment stack pointer
+# JUMP 
+li a0,  8
+jal ra,  deduct_gas
+# JUMP - unconditional jump to JUMPDEST
+addi s3,  s3,  -1
+slli t0,  s3,  5
+add  t0,  s2,  t0
+ld   t1,  0(t0)        # jump target
+slli t1,  t1,  2         # index * 4
+la   t2,  jumpdest_table
+add  t2,  t2,  t1
+lw   t3,  0(t2)        # actual label address
+jr   t3                # jump
+# JUMPDEST 
+li a0,  3
+jal ra,  deduct_gas
+jumpdest_12:
+li a0,  3
+jal ra,  deduct_gas
+# PUSH1 40
+li a0,  6
+jal ra,  deduct_gas
+# PUSH 40
+li a0,  6
+jal ra,  deduct_gas
+slli t1,  s3,  5          # Stack offset = s3 * 32
+add  t1,  s2,  t1         # Address = stack base + offset
+li t0,  0x0000000000000040       # Limb 0(lowest 64 bits)
+sd t0,  0(t1)
+li t0,  0x0000000000000000       # Limb 1
+sd t0,  8(t1)
+li t0,  0x0000000000000000       # Limb 2
+sd t0,  16(t1)
+li t0,  0x0000000000000000       # Limb 3(highest bits)
+sd t0,  24(t1)
+addi s3,  s3,  1          # Increment stack pointer
+# MLOAD 
+li a0,  3
+jal ra,  deduct_gas
+# MLOAD - load 256-bit word from memory
+addi s3,  s3,  -1              # Pop offset
+slli t0,  s3,  5
+add  t0,  s2,  t0
+ld   t1,  0(t0)              # offset
+add  t1,  t1,  s0              # addr = offset + MEM_BASE
+ld   t2,  0(t1)
+ld   t3,  8(t1)
+ld   t4,  16(t1)
+ld   t5,  24(t1)
+sd   t2,  0(t0)              # store back to stack
+sd   t3,  8(t0)
+sd   t4,  16(t0)
+sd   t5,  24(t0)
+addi s3,  s3,  1
+# PUSH2 00b8
+li a0,  9
+jal ra,  deduct_gas
+# PUSH 00b8
+li a0,  6
+jal ra,  deduct_gas
+slli t1,  s3,  5          # Stack offset = s3 * 32
+add  t1,  s2,  t1         # Address = stack base + offset
+li t0,  0x00000000000000b8       # Limb 0(lowest 64 bits)
+sd t0,  0(t1)
+li t0,  0x0000000000000000       # Limb 1
+sd t0,  8(t1)
+li t0,  0x0000000000000000       # Limb 2
+sd t0,  16(t1)
+li t0,  0x0000000000000000       # Limb 3(highest bits)
+sd t0,  24(t1)
+addi s3,  s3,  1          # Increment stack pointer
+# SWAP2 
+li a0,  5
+jal ra,  deduct_gas
+# SWAP2
+li a0,  3
+jal ra,  deduct_gas
+addi t0,  s3,  -1         # Top index
+addi t1,  s3,  -3     # Swap index
+slli t0,  t0,  5
+slli t1,  t1,  5
+add  t0,  s2,  t0         # Addr1
+add  t1,  s2,  t1         # Addr2
+ld t2,  0(t0)
+ld t3,  0(t1)
+sd t3,  0(t0)
+sd t2,  0(t1)
+ld t2,  8(t0)
+ld t3,  8(t1)
+sd t3,  8(t0)
+sd t2,  8(t1)
+ld t2,  16(t0)
+ld t3,  16(t1)
+sd t3,  16(t0)
+sd t2,  16(t1)
+ld t2,  24(t0)
+ld t3,  24(t1)
+sd t3,  24(t0)
+sd t2,  24(t1)
+# SWAP1 
+li a0,  4
+jal ra,  deduct_gas
+# SWAP1
+li a0,  3
+jal ra,  deduct_gas
+addi t0,  s3,  -1         # Top index
+addi t1,  s3,  -2     # Swap index
+slli t0,  t0,  5
+slli t1,  t1,  5
+add  t0,  s2,  t0         # Addr1
+add  t1,  s2,  t1         # Addr2
+ld t2,  0(t0)
+ld t3,  0(t1)
+sd t3,  0(t0)
+sd t2,  0(t1)
+ld t2,  8(t0)
+ld t3,  8(t1)
+sd t3,  8(t0)
+sd t2,  8(t1)
+ld t2,  16(t0)
+ld t3,  16(t1)
+sd t3,  16(t0)
+sd t2,  16(t1)
+ld t2,  24(t0)
+ld t3,  24(t1)
+sd t3,  24(t0)
+sd t2,  24(t1)
+# PUSH2 016b
+li a0,  9
+jal ra,  deduct_gas
+# PUSH 016b
+li a0,  6
+jal ra,  deduct_gas
+slli t1,  s3,  5          # Stack offset = s3 * 32
+add  t1,  s2,  t1         # Address = stack base + offset
+li t0,  0x000000000000016b       # Limb 0(lowest 64 bits)
+sd t0,  0(t1)
+li t0,  0x0000000000000000       # Limb 1
+sd t0,  8(t1)
+li t0,  0x0000000000000000       # Limb 2
+sd t0,  16(t1)
+li t0,  0x0000000000000000       # Limb 3(highest bits)
+sd t0,  24(t1)
+addi s3,  s3,  1          # Increment stack pointer
+# JUMP 
+li a0,  8
+jal ra,  deduct_gas
+# JUMP - unconditional jump to JUMPDEST
+addi s3,  s3,  -1
+slli t0,  s3,  5
+add  t0,  s2,  t0
+ld   t1,  0(t0)        # jump target
+slli t1,  t1,  2         # index * 4
+la   t2,  jumpdest_table
+add  t2,  t2,  t1
+lw   t3,  0(t2)        # actual label address
+jr   t3                # jump
+# JUMPDEST 
+li a0,  3
+jal ra,  deduct_gas
+jumpdest_13:
+li a0,  3
+jal ra,  deduct_gas
+# PUSH1 40
+li a0,  6
+jal ra,  deduct_gas
+# PUSH 40
+li a0,  6
+jal ra,  deduct_gas
+slli t1,  s3,  5          # Stack offset = s3 * 32
+add  t1,  s2,  t1         # Address = stack base + offset
+li t0,  0x0000000000000040       # Limb 0(lowest 64 bits)
+sd t0,  0(t1)
+li t0,  0x0000000000000000       # Limb 1
+sd t0,  8(t1)
+li t0,  0x0000000000000000       # Limb 2
+sd t0,  16(t1)
+li t0,  0x0000000000000000       # Limb 3(highest bits)
+sd t0,  24(t1)
+addi s3,  s3,  1          # Increment stack pointer
+# MLOAD 
+li a0,  3
+jal ra,  deduct_gas
+# MLOAD - load 256-bit word from memory
+addi s3,  s3,  -1              # Pop offset
+slli t0,  s3,  5
+add  t0,  s2,  t0
+ld   t1,  0(t0)              # offset
+add  t1,  t1,  s0              # addr = offset + MEM_BASE
+ld   t2,  0(t1)
+ld   t3,  8(t1)
+ld   t4,  16(t1)
+ld   t5,  24(t1)
+sd   t2,  0(t0)              # store back to stack
+sd   t3,  8(t0)
+sd   t4,  16(t0)
+sd   t5,  24(t0)
+addi s3,  s3,  1
+# DUP1 
+li a0,  4
+jal ra,  deduct_gas
+# DUP1
+addi t0,  s3,  -1       # Index to duplicate
+slli t0,  t0,  5          # Offset = t0 * 32
+add  t0,  s2,  t0         # Src address
+slli t1,  s3,  5          # Dest offset = s3 * 32
+add  t1,  s2,  t1         # Dest address
+ld   t2,  0(t0)         # limb0
+ld   t3,  8(t0)         # limb1
+ld   t4,  16(t0)        # limb2
+ld   t5,  24(t0)        # limb3
+sd   t2,  0(t1)
+sd   t3,  8(t1)
+sd   t4,  16(t1)
+sd   t5,  24(t1)
+addi s3,  s3,  1          # Push duplicate
+# SWAP2 
+li a0,  5
+jal ra,  deduct_gas
+# SWAP2
+li a0,  3
+jal ra,  deduct_gas
+addi t0,  s3,  -1         # Top index
+addi t1,  s3,  -3     # Swap index
+slli t0,  t0,  5
+slli t1,  t1,  5
+add  t0,  s2,  t0         # Addr1
+add  t1,  s2,  t1         # Addr2
+ld t2,  0(t0)
+ld t3,  0(t1)
+sd t3,  0(t0)
+sd t2,  0(t1)
+ld t2,  8(t0)
+ld t3,  8(t1)
+sd t3,  8(t0)
+sd t2,  8(t1)
+ld t2,  16(t0)
+ld t3,  16(t1)
+sd t3,  16(t0)
+sd t2,  16(t1)
+ld t2,  24(t0)
+ld t3,  24(t1)
+sd t3,  24(t0)
+sd t2,  24(t1)
+# SUB 
+li a0,  3
+jal ra,  deduct_gas
+# 256-bit SUB (4 limbs)
+addi s3,  s3,  -2
+slli t0,  s3,  5
+add  t0,  s2,  t0
+ld t1,  0(t0)          # B limb0
+ld t2,  8(t0)          # B limb1
+ld t3,  16(t0)         # B limb2
+ld t4,  24(t0)         # B limb3
+ld t5,  32(t0)         # A limb0
+ld t6,  40(t0)         # A limb1
+ld a0,  48(t0)         # A limb2
+ld a1,  56(t0)         # A limb3
+sub s4,  t5,  t1         # res0 = a0 - b0
+sltu s5,  t5,  t1        # borrow0 = a0 < b0
+sub s6,  t6,  t2         # res1 = a1 - b1
+sub s6,  s6,  s5         # res1 -= borrow0
+sltu s5,  t6,  t2        # borrow1 = a1 < b1
+sltu a2,  s6,  s5
+or   s5,  s5,  a2
+sub s10,  a0,  t3
+sub s10,  s10,  s5
+sltu s5,  a0,  t3
+sltu a2,  s10,  s5
+or   s5,  s5,  a2
+sub s11,  a1,  t4
+sub s11,  s11,  s5
+sd s4,  0(t0)
+sd s6,  8(t0)
+sd s10,  16(t0)
+sd s11,  24(t0)
+addi s3,  s3,  1
+# SWAP1 
+li a0,  4
+jal ra,  deduct_gas
+# SWAP1
+li a0,  3
+jal ra,  deduct_gas
+addi t0,  s3,  -1         # Top index
+addi t1,  s3,  -2     # Swap index
+slli t0,  t0,  5
+slli t1,  t1,  5
+add  t0,  s2,  t0         # Addr1
+add  t1,  s2,  t1         # Addr2
+ld t2,  0(t0)
+ld t3,  0(t1)
+sd t3,  0(t0)
+sd t2,  0(t1)
+ld t2,  8(t0)
+ld t3,  8(t1)
+sd t3,  8(t0)
+sd t2,  8(t1)
+ld t2,  16(t0)
+ld t3,  16(t1)
+sd t3,  16(t0)
+sd t2,  16(t1)
+ld t2,  24(t0)
+ld t3,  24(t1)
+sd t3,  24(t0)
+sd t2,  24(t1)
+# RETURN 
+# RETURN - exit and return memory slice
+li a0,  0x0A
+jal ra,  deduct_gas
+addi s3,  s3,  -2
+slli t0,  s3,  5
+add  t0,  s2,  t0
+ld   a0,  0(t0)        # offset
+ld   a1,  8(t0)        # length
+add  a0,  a0,  s0        # offset += MEM_BASE
+jal  ra,  evm_return    # call runtime return function
+# JUMPDEST 
+li a0,  3
+jal ra,  deduct_gas
+jumpdest_14:
 li a0,  3
 jal ra,  deduct_gas
 # PUSH0 
@@ -1837,15 +2551,15 @@ addi s3,  s3,  1          # Increment stack pointer
 li a0,  3
 jal ra,  deduct_gas
 # Unimplemented opcode: SLOAD
-# PUSH2 0095
+# PUSH2 00d0
 li a0,  9
 jal ra,  deduct_gas
-# PUSH 0095
+# PUSH 00d0
 li a0,  6
 jal ra,  deduct_gas
 slli t1,  s3,  5          # Stack offset = s3 * 32
 add  t1,  s2,  t1         # Address = stack base + offset
-li t0,  0x0000000000000095       # Limb 0(lowest 64 bits)
+li t0,  0x00000000000000d0       # Limb 0(lowest 64 bits)
 sd t0,  0(t1)
 li t0,  0x0000000000000000       # Limb 1
 sd t0,  8(t1)
@@ -1910,15 +2624,15 @@ ld t2,  24(t0)
 ld t3,  24(t1)
 sd t3,  24(t0)
 sd t2,  24(t1)
-# PUSH2 015c
+# PUSH2 01b1
 li a0,  9
 jal ra,  deduct_gas
-# PUSH 015c
+# PUSH 01b1
 li a0,  6
 jal ra,  deduct_gas
 slli t1,  s3,  5          # Stack offset = s3 * 32
 add  t1,  s2,  t1         # Address = stack base + offset
-li t0,  0x000000000000015c       # Limb 0(lowest 64 bits)
+li t0,  0x00000000000001b1       # Limb 0(lowest 64 bits)
 sd t0,  0(t1)
 li t0,  0x0000000000000000       # Limb 1
 sd t0,  8(t1)
@@ -1943,7 +2657,7 @@ jr   t3                # jump
 # JUMPDEST 
 li a0,  3
 jal ra,  deduct_gas
-jumpdest_11:
+jumpdest_15:
 li a0,  3
 jal ra,  deduct_gas
 # SWAP1 
@@ -2132,7 +2846,379 @@ jr   t3                # jump
 # JUMPDEST 
 li a0,  3
 jal ra,  deduct_gas
-jumpdest_12:
+jumpdest_16:
+li a0,  3
+jal ra,  deduct_gas
+# PUSH0 
+li a0,  3
+jal ra,  deduct_gas
+# PUSH 0
+li a0,  6
+jal ra,  deduct_gas
+slli t1,  s3,  5          # Stack offset = s3 * 32
+add  t1,  s2,  t1         # Address = stack base + offset
+li t0,  0x0000000000000000       # Limb 0(lowest 64 bits)
+sd t0,  0(t1)
+li t0,  0x0000000000000000       # Limb 1
+sd t0,  8(t1)
+li t0,  0x0000000000000000       # Limb 2
+sd t0,  16(t1)
+li t0,  0x0000000000000000       # Limb 3(highest bits)
+sd t0,  24(t1)
+addi s3,  s3,  1          # Increment stack pointer
+# DUP1 
+li a0,  4
+jal ra,  deduct_gas
+# DUP1
+addi t0,  s3,  -1       # Index to duplicate
+slli t0,  t0,  5          # Offset = t0 * 32
+add  t0,  s2,  t0         # Src address
+slli t1,  s3,  5          # Dest offset = s3 * 32
+add  t1,  s2,  t1         # Dest address
+ld   t2,  0(t0)         # limb0
+ld   t3,  8(t0)         # limb1
+ld   t4,  16(t0)        # limb2
+ld   t5,  24(t0)        # limb3
+sd   t2,  0(t1)
+sd   t3,  8(t1)
+sd   t4,  16(t1)
+sd   t5,  24(t1)
+addi s3,  s3,  1          # Push duplicate
+# DUP3 
+li a0,  6
+jal ra,  deduct_gas
+# DUP3
+addi t0,  s3,  -3       # Index to duplicate
+slli t0,  t0,  5          # Offset = t0 * 32
+add  t0,  s2,  t0         # Src address
+slli t1,  s3,  5          # Dest offset = s3 * 32
+add  t1,  s2,  t1         # Dest address
+ld   t2,  0(t0)         # limb0
+ld   t3,  8(t0)         # limb1
+ld   t4,  16(t0)        # limb2
+ld   t5,  24(t0)        # limb3
+sd   t2,  0(t1)
+sd   t3,  8(t1)
+sd   t4,  16(t1)
+sd   t5,  24(t1)
+addi s3,  s3,  1          # Push duplicate
+# PUSH0 
+li a0,  3
+jal ra,  deduct_gas
+# PUSH 0
+li a0,  6
+jal ra,  deduct_gas
+slli t1,  s3,  5          # Stack offset = s3 * 32
+add  t1,  s2,  t1         # Address = stack base + offset
+li t0,  0x0000000000000000       # Limb 0(lowest 64 bits)
+sd t0,  0(t1)
+li t0,  0x0000000000000000       # Limb 1
+sd t0,  8(t1)
+li t0,  0x0000000000000000       # Limb 2
+sd t0,  16(t1)
+li t0,  0x0000000000000000       # Limb 3(highest bits)
+sd t0,  24(t1)
+addi s3,  s3,  1          # Increment stack pointer
+# SLOAD 
+li a0,  3
+jal ra,  deduct_gas
+# Unimplemented opcode: SLOAD
+# PUSH2 00ea
+li a0,  9
+jal ra,  deduct_gas
+# PUSH 00ea
+li a0,  6
+jal ra,  deduct_gas
+slli t1,  s3,  5          # Stack offset = s3 * 32
+add  t1,  s2,  t1         # Address = stack base + offset
+li t0,  0x00000000000000ea       # Limb 0(lowest 64 bits)
+sd t0,  0(t1)
+li t0,  0x0000000000000000       # Limb 1
+sd t0,  8(t1)
+li t0,  0x0000000000000000       # Limb 2
+sd t0,  16(t1)
+li t0,  0x0000000000000000       # Limb 3(highest bits)
+sd t0,  24(t1)
+addi s3,  s3,  1          # Increment stack pointer
+# SWAP2 
+li a0,  5
+jal ra,  deduct_gas
+# SWAP2
+li a0,  3
+jal ra,  deduct_gas
+addi t0,  s3,  -1         # Top index
+addi t1,  s3,  -3     # Swap index
+slli t0,  t0,  5
+slli t1,  t1,  5
+add  t0,  s2,  t0         # Addr1
+add  t1,  s2,  t1         # Addr2
+ld t2,  0(t0)
+ld t3,  0(t1)
+sd t3,  0(t0)
+sd t2,  0(t1)
+ld t2,  8(t0)
+ld t3,  8(t1)
+sd t3,  8(t0)
+sd t2,  8(t1)
+ld t2,  16(t0)
+ld t3,  16(t1)
+sd t3,  16(t0)
+sd t2,  16(t1)
+ld t2,  24(t0)
+ld t3,  24(t1)
+sd t3,  24(t0)
+sd t2,  24(t1)
+# SWAP1 
+li a0,  4
+jal ra,  deduct_gas
+# SWAP1
+li a0,  3
+jal ra,  deduct_gas
+addi t0,  s3,  -1         # Top index
+addi t1,  s3,  -2     # Swap index
+slli t0,  t0,  5
+slli t1,  t1,  5
+add  t0,  s2,  t0         # Addr1
+add  t1,  s2,  t1         # Addr2
+ld t2,  0(t0)
+ld t3,  0(t1)
+sd t3,  0(t0)
+sd t2,  0(t1)
+ld t2,  8(t0)
+ld t3,  8(t1)
+sd t3,  8(t0)
+sd t2,  8(t1)
+ld t2,  16(t0)
+ld t3,  16(t1)
+sd t3,  16(t0)
+sd t2,  16(t1)
+ld t2,  24(t0)
+ld t3,  24(t1)
+sd t3,  24(t0)
+sd t2,  24(t1)
+# PUSH2 01e4
+li a0,  9
+jal ra,  deduct_gas
+# PUSH 01e4
+li a0,  6
+jal ra,  deduct_gas
+slli t1,  s3,  5          # Stack offset = s3 * 32
+add  t1,  s2,  t1         # Address = stack base + offset
+li t0,  0x00000000000001e4       # Limb 0(lowest 64 bits)
+sd t0,  0(t1)
+li t0,  0x0000000000000000       # Limb 1
+sd t0,  8(t1)
+li t0,  0x0000000000000000       # Limb 2
+sd t0,  16(t1)
+li t0,  0x0000000000000000       # Limb 3(highest bits)
+sd t0,  24(t1)
+addi s3,  s3,  1          # Increment stack pointer
+# JUMP 
+li a0,  8
+jal ra,  deduct_gas
+# JUMP - unconditional jump to JUMPDEST
+addi s3,  s3,  -1
+slli t0,  s3,  5
+add  t0,  s2,  t0
+ld   t1,  0(t0)        # jump target
+slli t1,  t1,  2         # index * 4
+la   t2,  jumpdest_table
+add  t2,  t2,  t1
+lw   t3,  0(t2)        # actual label address
+jr   t3                # jump
+# JUMPDEST 
+li a0,  3
+jal ra,  deduct_gas
+jumpdest_17:
+li a0,  3
+jal ra,  deduct_gas
+# SWAP1 
+li a0,  4
+jal ra,  deduct_gas
+# SWAP1
+li a0,  3
+jal ra,  deduct_gas
+addi t0,  s3,  -1         # Top index
+addi t1,  s3,  -2     # Swap index
+slli t0,  t0,  5
+slli t1,  t1,  5
+add  t0,  s2,  t0         # Addr1
+add  t1,  s2,  t1         # Addr2
+ld t2,  0(t0)
+ld t3,  0(t1)
+sd t3,  0(t0)
+sd t2,  0(t1)
+ld t2,  8(t0)
+ld t3,  8(t1)
+sd t3,  8(t0)
+sd t2,  8(t1)
+ld t2,  16(t0)
+ld t3,  16(t1)
+sd t3,  16(t0)
+sd t2,  16(t1)
+ld t2,  24(t0)
+ld t3,  24(t1)
+sd t3,  24(t0)
+sd t2,  24(t1)
+# POP 
+li a0,  2
+jal ra,  deduct_gas
+addi s3,  s3,  -1    # Decrement stack pointer
+# DUP1 
+li a0,  4
+jal ra,  deduct_gas
+# DUP1
+addi t0,  s3,  -1       # Index to duplicate
+slli t0,  t0,  5          # Offset = t0 * 32
+add  t0,  s2,  t0         # Src address
+slli t1,  s3,  5          # Dest offset = s3 * 32
+add  t1,  s2,  t1         # Dest address
+ld   t2,  0(t0)         # limb0
+ld   t3,  8(t0)         # limb1
+ld   t4,  16(t0)        # limb2
+ld   t5,  24(t0)        # limb3
+sd   t2,  0(t1)
+sd   t3,  8(t1)
+sd   t4,  16(t1)
+sd   t5,  24(t1)
+addi s3,  s3,  1          # Push duplicate
+# SWAP2 
+li a0,  5
+jal ra,  deduct_gas
+# SWAP2
+li a0,  3
+jal ra,  deduct_gas
+addi t0,  s3,  -1         # Top index
+addi t1,  s3,  -3     # Swap index
+slli t0,  t0,  5
+slli t1,  t1,  5
+add  t0,  s2,  t0         # Addr1
+add  t1,  s2,  t1         # Addr2
+ld t2,  0(t0)
+ld t3,  0(t1)
+sd t3,  0(t0)
+sd t2,  0(t1)
+ld t2,  8(t0)
+ld t3,  8(t1)
+sd t3,  8(t0)
+sd t2,  8(t1)
+ld t2,  16(t0)
+ld t3,  16(t1)
+sd t3,  16(t0)
+sd t2,  16(t1)
+ld t2,  24(t0)
+ld t3,  24(t1)
+sd t3,  24(t0)
+sd t2,  24(t1)
+# SWAP1 
+li a0,  4
+jal ra,  deduct_gas
+# SWAP1
+li a0,  3
+jal ra,  deduct_gas
+addi t0,  s3,  -1         # Top index
+addi t1,  s3,  -2     # Swap index
+slli t0,  t0,  5
+slli t1,  t1,  5
+add  t0,  s2,  t0         # Addr1
+add  t1,  s2,  t1         # Addr2
+ld t2,  0(t0)
+ld t3,  0(t1)
+sd t3,  0(t0)
+sd t2,  0(t1)
+ld t2,  8(t0)
+ld t3,  8(t1)
+sd t3,  8(t0)
+sd t2,  8(t1)
+ld t2,  16(t0)
+ld t3,  16(t1)
+sd t3,  16(t0)
+sd t2,  16(t1)
+ld t2,  24(t0)
+ld t3,  24(t1)
+sd t3,  24(t0)
+sd t2,  24(t1)
+# POP 
+li a0,  2
+jal ra,  deduct_gas
+addi s3,  s3,  -1    # Decrement stack pointer
+# SWAP2 
+li a0,  5
+jal ra,  deduct_gas
+# SWAP2
+li a0,  3
+jal ra,  deduct_gas
+addi t0,  s3,  -1         # Top index
+addi t1,  s3,  -3     # Swap index
+slli t0,  t0,  5
+slli t1,  t1,  5
+add  t0,  s2,  t0         # Addr1
+add  t1,  s2,  t1         # Addr2
+ld t2,  0(t0)
+ld t3,  0(t1)
+sd t3,  0(t0)
+sd t2,  0(t1)
+ld t2,  8(t0)
+ld t3,  8(t1)
+sd t3,  8(t0)
+sd t2,  8(t1)
+ld t2,  16(t0)
+ld t3,  16(t1)
+sd t3,  16(t0)
+sd t2,  16(t1)
+ld t2,  24(t0)
+ld t3,  24(t1)
+sd t3,  24(t0)
+sd t2,  24(t1)
+# SWAP1 
+li a0,  4
+jal ra,  deduct_gas
+# SWAP1
+li a0,  3
+jal ra,  deduct_gas
+addi t0,  s3,  -1         # Top index
+addi t1,  s3,  -2     # Swap index
+slli t0,  t0,  5
+slli t1,  t1,  5
+add  t0,  s2,  t0         # Addr1
+add  t1,  s2,  t1         # Addr2
+ld t2,  0(t0)
+ld t3,  0(t1)
+sd t3,  0(t0)
+sd t2,  0(t1)
+ld t2,  8(t0)
+ld t3,  8(t1)
+sd t3,  8(t0)
+sd t2,  8(t1)
+ld t2,  16(t0)
+ld t3,  16(t1)
+sd t3,  16(t0)
+sd t2,  16(t1)
+ld t2,  24(t0)
+ld t3,  24(t1)
+sd t3,  24(t0)
+sd t2,  24(t1)
+# POP 
+li a0,  2
+jal ra,  deduct_gas
+addi s3,  s3,  -1    # Decrement stack pointer
+# JUMP 
+li a0,  8
+jal ra,  deduct_gas
+# JUMP - unconditional jump to JUMPDEST
+addi s3,  s3,  -1
+slli t0,  s3,  5
+add  t0,  s2,  t0
+ld   t1,  0(t0)        # jump target
+slli t1,  t1,  2         # index * 4
+la   t2,  jumpdest_table
+add  t2,  t2,  t1
+lw   t3,  0(t2)        # actual label address
+jr   t3                # jump
+# JUMPDEST 
+li a0,  3
+jal ra,  deduct_gas
+jumpdest_18:
 li a0,  3
 jal ra,  deduct_gas
 # PUSH0 
@@ -2190,7 +3276,7 @@ jr   t3                # jump
 # JUMPDEST 
 li a0,  3
 jal ra,  deduct_gas
-jumpdest_13:
+jumpdest_19:
 li a0,  3
 jal ra,  deduct_gas
 # PUSH0 
@@ -2242,7 +3328,7 @@ jal  ra,  evm_revert    # call runtime revert function
 # JUMPDEST 
 li a0,  3
 jal ra,  deduct_gas
-jumpdest_14:
+jumpdest_20:
 li a0,  3
 jal ra,  deduct_gas
 # PUSH0 
@@ -2388,18 +3474,18 @@ jr   t3                # jump
 # JUMPDEST 
 li a0,  3
 jal ra,  deduct_gas
-jumpdest_15:
+jumpdest_21:
 li a0,  3
 jal ra,  deduct_gas
-# PUSH2 00bb
+# PUSH2 0110
 li a0,  9
 jal ra,  deduct_gas
-# PUSH 00bb
+# PUSH 0110
 li a0,  6
 jal ra,  deduct_gas
 slli t1,  s3,  5          # Stack offset = s3 * 32
 add  t1,  s2,  t1         # Address = stack base + offset
-li t0,  0x00000000000000bb       # Limb 0(lowest 64 bits)
+li t0,  0x0000000000000110       # Limb 0(lowest 64 bits)
 sd t0,  0(t1)
 li t0,  0x0000000000000000       # Limb 1
 sd t0,  8(t1)
@@ -2426,15 +3512,15 @@ sd   t3,  8(t1)
 sd   t4,  16(t1)
 sd   t5,  24(t1)
 addi s3,  s3,  1          # Push duplicate
-# PUSH2 00a9
+# PUSH2 00fe
 li a0,  9
 jal ra,  deduct_gas
-# PUSH 00a9
+# PUSH 00fe
 li a0,  6
 jal ra,  deduct_gas
 slli t1,  s3,  5          # Stack offset = s3 * 32
 add  t1,  s2,  t1         # Address = stack base + offset
-li t0,  0x00000000000000a9       # Limb 0(lowest 64 bits)
+li t0,  0x00000000000000fe       # Limb 0(lowest 64 bits)
 sd t0,  0(t1)
 li t0,  0x0000000000000000       # Limb 1
 sd t0,  8(t1)
@@ -2459,7 +3545,7 @@ jr   t3                # jump
 # JUMPDEST 
 li a0,  3
 jal ra,  deduct_gas
-jumpdest_16:
+jumpdest_22:
 li a0,  3
 jal ra,  deduct_gas
 # DUP2 
@@ -2508,15 +3594,15 @@ sd   zero,  8(t0)
 sd   zero,  16(t0)
 sd   zero,  24(t0)
 addi s3,  s3,  1
-# PUSH2 00c5
+# PUSH2 011a
 li a0,  9
 jal ra,  deduct_gas
-# PUSH 00c5
+# PUSH 011a
 li a0,  6
 jal ra,  deduct_gas
 slli t1,  s3,  5          # Stack offset = s3 * 32
 add  t1,  s2,  t1         # Address = stack base + offset
-li t0,  0x00000000000000c5       # Limb 0(lowest 64 bits)
+li t0,  0x000000000000011a       # Limb 0(lowest 64 bits)
 sd t0,  0(t1)
 li t0,  0x0000000000000000       # Limb 1
 sd t0,  8(t1)
@@ -2536,13 +3622,13 @@ slli t0,  s3,  5
 add  t0,  s2,  t0
 ld   t1,  0(t0)        # jump target
 ld   t2,  8(t0)        # condition
-beqz t2,  jumpi_skip_4
+beqz t2,  jumpi_skip_5
 slli t1,  t1,  2
 la   t3,  jumpdest_table
 add  t3,  t3,  t1
 lw   t4,  0(t3)        # load label
 jr   t4
-jumpi_skip_4:
+jumpi_skip_5:
 # PUSH0 
 li a0,  3
 jal ra,  deduct_gas
@@ -2592,7 +3678,7 @@ jal  ra,  evm_revert    # call runtime revert function
 # JUMPDEST 
 li a0,  3
 jal ra,  deduct_gas
-jumpdest_17:
+jumpdest_23:
 li a0,  3
 jal ra,  deduct_gas
 # POP 
@@ -2615,7 +3701,7 @@ jr   t3                # jump
 # JUMPDEST 
 li a0,  3
 jal ra,  deduct_gas
-jumpdest_18:
+jumpdest_24:
 li a0,  3
 jal ra,  deduct_gas
 # PUSH0 
@@ -2689,15 +3775,15 @@ sd t2,  24(t1)
 li a0,  2
 jal ra,  deduct_gas
 addi s3,  s3,  -1    # Decrement stack pointer
-# PUSH2 00d6
+# PUSH2 012b
 li a0,  9
 jal ra,  deduct_gas
-# PUSH 00d6
+# PUSH 012b
 li a0,  6
 jal ra,  deduct_gas
 slli t1,  s3,  5          # Stack offset = s3 * 32
 add  t1,  s2,  t1         # Address = stack base + offset
-li t0,  0x00000000000000d6       # Limb 0(lowest 64 bits)
+li t0,  0x000000000000012b       # Limb 0(lowest 64 bits)
 sd t0,  0(t1)
 li t0,  0x0000000000000000       # Limb 1
 sd t0,  8(t1)
@@ -2724,15 +3810,15 @@ sd   t3,  8(t1)
 sd   t4,  16(t1)
 sd   t5,  24(t1)
 addi s3,  s3,  1          # Push duplicate
-# PUSH2 00b2
+# PUSH2 0107
 li a0,  9
 jal ra,  deduct_gas
-# PUSH 00b2
+# PUSH 0107
 li a0,  6
 jal ra,  deduct_gas
 slli t1,  s3,  5          # Stack offset = s3 * 32
 add  t1,  s2,  t1         # Address = stack base + offset
-li t0,  0x00000000000000b2       # Limb 0(lowest 64 bits)
+li t0,  0x0000000000000107       # Limb 0(lowest 64 bits)
 sd t0,  0(t1)
 li t0,  0x0000000000000000       # Limb 1
 sd t0,  8(t1)
@@ -2757,7 +3843,7 @@ jr   t3                # jump
 # JUMPDEST 
 li a0,  3
 jal ra,  deduct_gas
-jumpdest_19:
+jumpdest_25:
 li a0,  3
 jal ra,  deduct_gas
 # SWAP3 
@@ -2864,7 +3950,7 @@ jr   t3                # jump
 # JUMPDEST 
 li a0,  3
 jal ra,  deduct_gas
-jumpdest_20:
+jumpdest_26:
 li a0,  3
 jal ra,  deduct_gas
 # PUSH0 
@@ -2996,15 +4082,15 @@ sd   zero,  8(t0)
 sd   zero,  16(t0)
 sd   zero,  24(t0)
 addi s3,  s3,  1
-# PUSH2 00f1
+# PUSH2 0146
 li a0,  9
 jal ra,  deduct_gas
-# PUSH 00f1
+# PUSH 0146
 li a0,  6
 jal ra,  deduct_gas
 slli t1,  s3,  5          # Stack offset = s3 * 32
 add  t1,  s2,  t1         # Address = stack base + offset
-li t0,  0x00000000000000f1       # Limb 0(lowest 64 bits)
+li t0,  0x0000000000000146       # Limb 0(lowest 64 bits)
 sd t0,  0(t1)
 li t0,  0x0000000000000000       # Limb 1
 sd t0,  8(t1)
@@ -3024,22 +4110,22 @@ slli t0,  s3,  5
 add  t0,  s2,  t0
 ld   t1,  0(t0)        # jump target
 ld   t2,  8(t0)        # condition
-beqz t2,  jumpi_skip_5
+beqz t2,  jumpi_skip_6
 slli t1,  t1,  2
 la   t3,  jumpdest_table
 add  t3,  t3,  t1
 lw   t4,  0(t3)        # load label
 jr   t4
-jumpi_skip_5:
-# PUSH2 00f0
+jumpi_skip_6:
+# PUSH2 0145
 li a0,  9
 jal ra,  deduct_gas
-# PUSH 00f0
+# PUSH 0145
 li a0,  6
 jal ra,  deduct_gas
 slli t1,  s3,  5          # Stack offset = s3 * 32
 add  t1,  s2,  t1         # Address = stack base + offset
-li t0,  0x00000000000000f0       # Limb 0(lowest 64 bits)
+li t0,  0x0000000000000145       # Limb 0(lowest 64 bits)
 sd t0,  0(t1)
 li t0,  0x0000000000000000       # Limb 1
 sd t0,  8(t1)
@@ -3048,15 +4134,15 @@ sd t0,  16(t1)
 li t0,  0x0000000000000000       # Limb 3(highest bits)
 sd t0,  24(t1)
 addi s3,  s3,  1          # Increment stack pointer
-# PUSH2 00a5
+# PUSH2 00fa
 li a0,  9
 jal ra,  deduct_gas
-# PUSH 00a5
+# PUSH 00fa
 li a0,  6
 jal ra,  deduct_gas
 slli t1,  s3,  5          # Stack offset = s3 * 32
 add  t1,  s2,  t1         # Address = stack base + offset
-li t0,  0x00000000000000a5       # Limb 0(lowest 64 bits)
+li t0,  0x00000000000000fa       # Limb 0(lowest 64 bits)
 sd t0,  0(t1)
 li t0,  0x0000000000000000       # Limb 1
 sd t0,  8(t1)
@@ -3081,13 +4167,13 @@ jr   t3                # jump
 # JUMPDEST 
 li a0,  3
 jal ra,  deduct_gas
-jumpdest_21:
+jumpdest_27:
 li a0,  3
 jal ra,  deduct_gas
 # JUMPDEST 
 li a0,  3
 jal ra,  deduct_gas
-jumpdest_22:
+jumpdest_28:
 li a0,  3
 jal ra,  deduct_gas
 # PUSH0 
@@ -3107,15 +4193,15 @@ sd t0,  16(t1)
 li t0,  0x0000000000000000       # Limb 3(highest bits)
 sd t0,  24(t1)
 addi s3,  s3,  1          # Increment stack pointer
-# PUSH2 00fe
+# PUSH2 0153
 li a0,  9
 jal ra,  deduct_gas
-# PUSH 00fe
+# PUSH 0153
 li a0,  6
 jal ra,  deduct_gas
 slli t1,  s3,  5          # Stack offset = s3 * 32
 add  t1,  s2,  t1         # Address = stack base + offset
-li t0,  0x00000000000000fe       # Limb 0(lowest 64 bits)
+li t0,  0x0000000000000153       # Limb 0(lowest 64 bits)
 sd t0,  0(t1)
 li t0,  0x0000000000000000       # Limb 1
 sd t0,  8(t1)
@@ -3208,15 +4294,15 @@ sd s6,  8(t0)          # result limb1
 sd s10,  16(t0)         # result limb2
 sd s11,  24(t0)         # result limb3
 addi s3,  s3,  1         # Push result
-# PUSH2 00c8
+# PUSH2 011d
 li a0,  9
 jal ra,  deduct_gas
-# PUSH 00c8
+# PUSH 011d
 li a0,  6
 jal ra,  deduct_gas
 slli t1,  s3,  5          # Stack offset = s3 * 32
 add  t1,  s2,  t1         # Address = stack base + offset
-li t0,  0x00000000000000c8       # Limb 0(lowest 64 bits)
+li t0,  0x000000000000011d       # Limb 0(lowest 64 bits)
 sd t0,  0(t1)
 li t0,  0x0000000000000000       # Limb 1
 sd t0,  8(t1)
@@ -3241,7 +4327,7 @@ jr   t3                # jump
 # JUMPDEST 
 li a0,  3
 jal ra,  deduct_gas
-jumpdest_23:
+jumpdest_29:
 li a0,  3
 jal ra,  deduct_gas
 # SWAP2 
@@ -3408,18 +4494,18 @@ jr   t3                # jump
 # JUMPDEST 
 li a0,  3
 jal ra,  deduct_gas
-jumpdest_24:
+jumpdest_30:
 li a0,  3
 jal ra,  deduct_gas
-# PUSH2 0110
+# PUSH2 0165
 li a0,  9
 jal ra,  deduct_gas
-# PUSH 0110
+# PUSH 0165
 li a0,  6
 jal ra,  deduct_gas
 slli t1,  s3,  5          # Stack offset = s3 * 32
 add  t1,  s2,  t1         # Address = stack base + offset
-li t0,  0x0000000000000110       # Limb 0(lowest 64 bits)
+li t0,  0x0000000000000165       # Limb 0(lowest 64 bits)
 sd t0,  0(t1)
 li t0,  0x0000000000000000       # Limb 1
 sd t0,  8(t1)
@@ -3446,15 +4532,15 @@ sd   t3,  8(t1)
 sd   t4,  16(t1)
 sd   t5,  24(t1)
 addi s3,  s3,  1          # Push duplicate
-# PUSH2 00a9
+# PUSH2 00fe
 li a0,  9
 jal ra,  deduct_gas
-# PUSH 00a9
+# PUSH 00fe
 li a0,  6
 jal ra,  deduct_gas
 slli t1,  s3,  5          # Stack offset = s3 * 32
 add  t1,  s2,  t1         # Address = stack base + offset
-li t0,  0x00000000000000a9       # Limb 0(lowest 64 bits)
+li t0,  0x00000000000000fe       # Limb 0(lowest 64 bits)
 sd t0,  0(t1)
 li t0,  0x0000000000000000       # Limb 1
 sd t0,  8(t1)
@@ -3479,7 +4565,7 @@ jr   t3                # jump
 # JUMPDEST 
 li a0,  3
 jal ra,  deduct_gas
-jumpdest_25:
+jumpdest_31:
 li a0,  3
 jal ra,  deduct_gas
 # DUP3 
@@ -3565,7 +4651,7 @@ jr   t3                # jump
 # JUMPDEST 
 li a0,  3
 jal ra,  deduct_gas
-jumpdest_26:
+jumpdest_32:
 li a0,  3
 jal ra,  deduct_gas
 # PUSH0 
@@ -3682,15 +4768,15 @@ sd t2,  24(t1)
 li a0,  2
 jal ra,  deduct_gas
 addi s3,  s3,  -1    # Decrement stack pointer
-# PUSH2 0129
+# PUSH2 017e
 li a0,  9
 jal ra,  deduct_gas
-# PUSH 0129
+# PUSH 017e
 li a0,  6
 jal ra,  deduct_gas
 slli t1,  s3,  5          # Stack offset = s3 * 32
 add  t1,  s2,  t1         # Address = stack base + offset
-li t0,  0x0000000000000129       # Limb 0(lowest 64 bits)
+li t0,  0x000000000000017e       # Limb 0(lowest 64 bits)
 sd t0,  0(t1)
 li t0,  0x0000000000000000       # Limb 1
 sd t0,  8(t1)
@@ -3782,15 +4868,15 @@ sd   t3,  8(t1)
 sd   t4,  16(t1)
 sd   t5,  24(t1)
 addi s3,  s3,  1          # Push duplicate
-# PUSH2 0107
+# PUSH2 015c
 li a0,  9
 jal ra,  deduct_gas
-# PUSH 0107
+# PUSH 015c
 li a0,  6
 jal ra,  deduct_gas
 slli t1,  s3,  5          # Stack offset = s3 * 32
 add  t1,  s2,  t1         # Address = stack base + offset
-li t0,  0x0000000000000107       # Limb 0(lowest 64 bits)
+li t0,  0x000000000000015c       # Limb 0(lowest 64 bits)
 sd t0,  0(t1)
 li t0,  0x0000000000000000       # Limb 1
 sd t0,  8(t1)
@@ -3815,7 +4901,7 @@ jr   t3                # jump
 # JUMPDEST 
 li a0,  3
 jal ra,  deduct_gas
-jumpdest_27:
+jumpdest_33:
 li a0,  3
 jal ra,  deduct_gas
 # SWAP3 
@@ -3922,7 +5008,7 @@ jr   t3                # jump
 # JUMPDEST 
 li a0,  3
 jal ra,  deduct_gas
-jumpdest_28:
+jumpdest_34:
 li a0,  3
 jal ra,  deduct_gas
 # DUP0 
@@ -3974,7 +5060,7 @@ addi s3,  s3,  1          # Increment stack pointer
 # JUMPDEST 
 li a0,  3
 jal ra,  deduct_gas
-jumpdest_29:
+jumpdest_35:
 li a0,  3
 jal ra,  deduct_gas
 # PUSH0 
@@ -3994,15 +5080,15 @@ sd t0,  16(t1)
 li t0,  0x0000000000000000       # Limb 3(highest bits)
 sd t0,  24(t1)
 addi s3,  s3,  1          # Increment stack pointer
-# PUSH2 0166
+# PUSH2 01bb
 li a0,  9
 jal ra,  deduct_gas
-# PUSH 0166
+# PUSH 01bb
 li a0,  6
 jal ra,  deduct_gas
 slli t1,  s3,  5          # Stack offset = s3 * 32
 add  t1,  s2,  t1         # Address = stack base + offset
-li t0,  0x0000000000000166       # Limb 0(lowest 64 bits)
+li t0,  0x00000000000001bb       # Limb 0(lowest 64 bits)
 sd t0,  0(t1)
 li t0,  0x0000000000000000       # Limb 1
 sd t0,  8(t1)
@@ -4029,15 +5115,15 @@ sd   t3,  8(t1)
 sd   t4,  16(t1)
 sd   t5,  24(t1)
 addi s3,  s3,  1          # Push duplicate
-# PUSH2 00a9
+# PUSH2 00fe
 li a0,  9
 jal ra,  deduct_gas
-# PUSH 00a9
+# PUSH 00fe
 li a0,  6
 jal ra,  deduct_gas
 slli t1,  s3,  5          # Stack offset = s3 * 32
 add  t1,  s2,  t1         # Address = stack base + offset
-li t0,  0x00000000000000a9       # Limb 0(lowest 64 bits)
+li t0,  0x00000000000000fe       # Limb 0(lowest 64 bits)
 sd t0,  0(t1)
 li t0,  0x0000000000000000       # Limb 1
 sd t0,  8(t1)
@@ -4062,7 +5148,7 @@ jr   t3                # jump
 # JUMPDEST 
 li a0,  3
 jal ra,  deduct_gas
-jumpdest_30:
+jumpdest_36:
 li a0,  3
 jal ra,  deduct_gas
 # SWAP2 
@@ -4097,15 +5183,15 @@ sd t2,  24(t1)
 li a0,  2
 jal ra,  deduct_gas
 addi s3,  s3,  -1    # Decrement stack pointer
-# PUSH2 0171
+# PUSH2 01c6
 li a0,  9
 jal ra,  deduct_gas
-# PUSH 0171
+# PUSH 01c6
 li a0,  6
 jal ra,  deduct_gas
 slli t1,  s3,  5          # Stack offset = s3 * 32
 add  t1,  s2,  t1         # Address = stack base + offset
-li t0,  0x0000000000000171       # Limb 0(lowest 64 bits)
+li t0,  0x00000000000001c6       # Limb 0(lowest 64 bits)
 sd t0,  0(t1)
 li t0,  0x0000000000000000       # Limb 1
 sd t0,  8(t1)
@@ -4132,15 +5218,15 @@ sd   t3,  8(t1)
 sd   t4,  16(t1)
 sd   t5,  24(t1)
 addi s3,  s3,  1          # Push duplicate
-# PUSH2 00a9
+# PUSH2 00fe
 li a0,  9
 jal ra,  deduct_gas
-# PUSH 00a9
+# PUSH 00fe
 li a0,  6
 jal ra,  deduct_gas
 slli t1,  s3,  5          # Stack offset = s3 * 32
 add  t1,  s2,  t1         # Address = stack base + offset
-li t0,  0x00000000000000a9       # Limb 0(lowest 64 bits)
+li t0,  0x00000000000000fe       # Limb 0(lowest 64 bits)
 sd t0,  0(t1)
 li t0,  0x0000000000000000       # Limb 1
 sd t0,  8(t1)
@@ -4165,7 +5251,7 @@ jr   t3                # jump
 # JUMPDEST 
 li a0,  3
 jal ra,  deduct_gas
-jumpdest_31:
+jumpdest_37:
 li a0,  3
 jal ra,  deduct_gas
 # SWAP3 
@@ -4343,28 +5429,28 @@ slli t0,  s3,  5
 add  t0,  s2,  t0
 ld t1,  24(t0)  # a limb3
 ld t2,  56(t0)       # b limb3
-blt t1,  t2,  gt_true
-bgt t1,  t2,  gt_false
+blt t1,  t2,  gt_true_1
+bgt t1,  t2,  gt_false_1
 ld t1,  16(t0)  # a limb2
 ld t2,  48(t0)       # b limb2
-blt t1,  t2,  gt_true
-bgt t1,  t2,  gt_false
+blt t1,  t2,  gt_true_1
+bgt t1,  t2,  gt_false_1
 ld t1,  8(t0)  # a limb1
 ld t2,  40(t0)       # b limb1
-blt t1,  t2,  gt_true
-bgt t1,  t2,  gt_false
+blt t1,  t2,  gt_true_1
+bgt t1,  t2,  gt_false_1
 ld t1,  0(t0)  # a limb0
 ld t2,  32(t0)       # b limb0
-blt t1,  t2,  gt_true
-bgt t1,  t2,  gt_false
+blt t1,  t2,  gt_true_1
+bgt t1,  t2,  gt_false_1
 li s0,  0
-j gt_done
-gt_true:
+j gt_done_1
+gt_true_1:
 li s0,  1
-j gt_done
-gt_false:
+j gt_done_1
+gt_false_1:
 li s0,  0
-gt_done:
+gt_done_1:
 sd s0,  0(t0)
 sd zero,  8(t0)
 sd zero,  16(t0)
@@ -4390,15 +5476,15 @@ sd   zero,  8(t0)
 sd   zero,  16(t0)
 sd   zero,  24(t0)
 addi s3,  s3,  1
-# PUSH2 0189
+# PUSH2 01de
 li a0,  9
 jal ra,  deduct_gas
-# PUSH 0189
+# PUSH 01de
 li a0,  6
 jal ra,  deduct_gas
 slli t1,  s3,  5          # Stack offset = s3 * 32
 add  t1,  s2,  t1         # Address = stack base + offset
-li t0,  0x0000000000000189       # Limb 0(lowest 64 bits)
+li t0,  0x00000000000001de       # Limb 0(lowest 64 bits)
 sd t0,  0(t1)
 li t0,  0x0000000000000000       # Limb 1
 sd t0,  8(t1)
@@ -4418,22 +5504,22 @@ slli t0,  s3,  5
 add  t0,  s2,  t0
 ld   t1,  0(t0)        # jump target
 ld   t2,  8(t0)        # condition
-beqz t2,  jumpi_skip_6
+beqz t2,  jumpi_skip_7
 slli t1,  t1,  2
 la   t3,  jumpdest_table
 add  t3,  t3,  t1
 lw   t4,  0(t3)        # load label
 jr   t4
-jumpi_skip_6:
-# PUSH2 0188
+jumpi_skip_7:
+# PUSH2 01dd
 li a0,  9
 jal ra,  deduct_gas
-# PUSH 0188
+# PUSH 01dd
 li a0,  6
 jal ra,  deduct_gas
 slli t1,  s3,  5          # Stack offset = s3 * 32
 add  t1,  s2,  t1         # Address = stack base + offset
-li t0,  0x0000000000000188       # Limb 0(lowest 64 bits)
+li t0,  0x00000000000001dd       # Limb 0(lowest 64 bits)
 sd t0,  0(t1)
 li t0,  0x0000000000000000       # Limb 1
 sd t0,  8(t1)
@@ -4442,15 +5528,15 @@ sd t0,  16(t1)
 li t0,  0x0000000000000000       # Limb 3(highest bits)
 sd t0,  24(t1)
 addi s3,  s3,  1          # Increment stack pointer
-# PUSH2 012f
+# PUSH2 0184
 li a0,  9
 jal ra,  deduct_gas
-# PUSH 012f
+# PUSH 0184
 li a0,  6
 jal ra,  deduct_gas
 slli t1,  s3,  5          # Stack offset = s3 * 32
 add  t1,  s2,  t1         # Address = stack base + offset
-li t0,  0x000000000000012f       # Limb 0(lowest 64 bits)
+li t0,  0x0000000000000184       # Limb 0(lowest 64 bits)
 sd t0,  0(t1)
 li t0,  0x0000000000000000       # Limb 1
 sd t0,  8(t1)
@@ -4475,13 +5561,631 @@ jr   t3                # jump
 # JUMPDEST 
 li a0,  3
 jal ra,  deduct_gas
-jumpdest_32:
+jumpdest_38:
 li a0,  3
 jal ra,  deduct_gas
 # JUMPDEST 
 li a0,  3
 jal ra,  deduct_gas
-jumpdest_33:
+jumpdest_39:
+li a0,  3
+jal ra,  deduct_gas
+# SWAP3 
+li a0,  6
+jal ra,  deduct_gas
+# SWAP3
+li a0,  3
+jal ra,  deduct_gas
+addi t0,  s3,  -1         # Top index
+addi t1,  s3,  -4     # Swap index
+slli t0,  t0,  5
+slli t1,  t1,  5
+add  t0,  s2,  t0         # Addr1
+add  t1,  s2,  t1         # Addr2
+ld t2,  0(t0)
+ld t3,  0(t1)
+sd t3,  0(t0)
+sd t2,  0(t1)
+ld t2,  8(t0)
+ld t3,  8(t1)
+sd t3,  8(t0)
+sd t2,  8(t1)
+ld t2,  16(t0)
+ld t3,  16(t1)
+sd t3,  16(t0)
+sd t2,  16(t1)
+ld t2,  24(t0)
+ld t3,  24(t1)
+sd t3,  24(t0)
+sd t2,  24(t1)
+# SWAP2 
+li a0,  5
+jal ra,  deduct_gas
+# SWAP2
+li a0,  3
+jal ra,  deduct_gas
+addi t0,  s3,  -1         # Top index
+addi t1,  s3,  -3     # Swap index
+slli t0,  t0,  5
+slli t1,  t1,  5
+add  t0,  s2,  t0         # Addr1
+add  t1,  s2,  t1         # Addr2
+ld t2,  0(t0)
+ld t3,  0(t1)
+sd t3,  0(t0)
+sd t2,  0(t1)
+ld t2,  8(t0)
+ld t3,  8(t1)
+sd t3,  8(t0)
+sd t2,  8(t1)
+ld t2,  16(t0)
+ld t3,  16(t1)
+sd t3,  16(t0)
+sd t2,  16(t1)
+ld t2,  24(t0)
+ld t3,  24(t1)
+sd t3,  24(t0)
+sd t2,  24(t1)
+# SWAP1 
+li a0,  4
+jal ra,  deduct_gas
+# SWAP1
+li a0,  3
+jal ra,  deduct_gas
+addi t0,  s3,  -1         # Top index
+addi t1,  s3,  -2     # Swap index
+slli t0,  t0,  5
+slli t1,  t1,  5
+add  t0,  s2,  t0         # Addr1
+add  t1,  s2,  t1         # Addr2
+ld t2,  0(t0)
+ld t3,  0(t1)
+sd t3,  0(t0)
+sd t2,  0(t1)
+ld t2,  8(t0)
+ld t3,  8(t1)
+sd t3,  8(t0)
+sd t2,  8(t1)
+ld t2,  16(t0)
+ld t3,  16(t1)
+sd t3,  16(t0)
+sd t2,  16(t1)
+ld t2,  24(t0)
+ld t3,  24(t1)
+sd t3,  24(t0)
+sd t2,  24(t1)
+# POP 
+li a0,  2
+jal ra,  deduct_gas
+addi s3,  s3,  -1    # Decrement stack pointer
+# JUMP 
+li a0,  8
+jal ra,  deduct_gas
+# JUMP - unconditional jump to JUMPDEST
+addi s3,  s3,  -1
+slli t0,  s3,  5
+add  t0,  s2,  t0
+ld   t1,  0(t0)        # jump target
+slli t1,  t1,  2         # index * 4
+la   t2,  jumpdest_table
+add  t2,  t2,  t1
+lw   t3,  0(t2)        # actual label address
+jr   t3                # jump
+# JUMPDEST 
+li a0,  3
+jal ra,  deduct_gas
+jumpdest_40:
+li a0,  3
+jal ra,  deduct_gas
+# PUSH0 
+li a0,  3
+jal ra,  deduct_gas
+# PUSH 0
+li a0,  6
+jal ra,  deduct_gas
+slli t1,  s3,  5          # Stack offset = s3 * 32
+add  t1,  s2,  t1         # Address = stack base + offset
+li t0,  0x0000000000000000       # Limb 0(lowest 64 bits)
+sd t0,  0(t1)
+li t0,  0x0000000000000000       # Limb 1
+sd t0,  8(t1)
+li t0,  0x0000000000000000       # Limb 2
+sd t0,  16(t1)
+li t0,  0x0000000000000000       # Limb 3(highest bits)
+sd t0,  24(t1)
+addi s3,  s3,  1          # Increment stack pointer
+# PUSH2 01ee
+li a0,  9
+jal ra,  deduct_gas
+# PUSH 01ee
+li a0,  6
+jal ra,  deduct_gas
+slli t1,  s3,  5          # Stack offset = s3 * 32
+add  t1,  s2,  t1         # Address = stack base + offset
+li t0,  0x00000000000001ee       # Limb 0(lowest 64 bits)
+sd t0,  0(t1)
+li t0,  0x0000000000000000       # Limb 1
+sd t0,  8(t1)
+li t0,  0x0000000000000000       # Limb 2
+sd t0,  16(t1)
+li t0,  0x0000000000000000       # Limb 3(highest bits)
+sd t0,  24(t1)
+addi s3,  s3,  1          # Increment stack pointer
+# DUP3 
+li a0,  6
+jal ra,  deduct_gas
+# DUP3
+addi t0,  s3,  -3       # Index to duplicate
+slli t0,  t0,  5          # Offset = t0 * 32
+add  t0,  s2,  t0         # Src address
+slli t1,  s3,  5          # Dest offset = s3 * 32
+add  t1,  s2,  t1         # Dest address
+ld   t2,  0(t0)         # limb0
+ld   t3,  8(t0)         # limb1
+ld   t4,  16(t0)        # limb2
+ld   t5,  24(t0)        # limb3
+sd   t2,  0(t1)
+sd   t3,  8(t1)
+sd   t4,  16(t1)
+sd   t5,  24(t1)
+addi s3,  s3,  1          # Push duplicate
+# PUSH2 00fe
+li a0,  9
+jal ra,  deduct_gas
+# PUSH 00fe
+li a0,  6
+jal ra,  deduct_gas
+slli t1,  s3,  5          # Stack offset = s3 * 32
+add  t1,  s2,  t1         # Address = stack base + offset
+li t0,  0x00000000000000fe       # Limb 0(lowest 64 bits)
+sd t0,  0(t1)
+li t0,  0x0000000000000000       # Limb 1
+sd t0,  8(t1)
+li t0,  0x0000000000000000       # Limb 2
+sd t0,  16(t1)
+li t0,  0x0000000000000000       # Limb 3(highest bits)
+sd t0,  24(t1)
+addi s3,  s3,  1          # Increment stack pointer
+# JUMP 
+li a0,  8
+jal ra,  deduct_gas
+# JUMP - unconditional jump to JUMPDEST
+addi s3,  s3,  -1
+slli t0,  s3,  5
+add  t0,  s2,  t0
+ld   t1,  0(t0)        # jump target
+slli t1,  t1,  2         # index * 4
+la   t2,  jumpdest_table
+add  t2,  t2,  t1
+lw   t3,  0(t2)        # actual label address
+jr   t3                # jump
+# JUMPDEST 
+li a0,  3
+jal ra,  deduct_gas
+jumpdest_41:
+li a0,  3
+jal ra,  deduct_gas
+# SWAP2 
+li a0,  5
+jal ra,  deduct_gas
+# SWAP2
+li a0,  3
+jal ra,  deduct_gas
+addi t0,  s3,  -1         # Top index
+addi t1,  s3,  -3     # Swap index
+slli t0,  t0,  5
+slli t1,  t1,  5
+add  t0,  s2,  t0         # Addr1
+add  t1,  s2,  t1         # Addr2
+ld t2,  0(t0)
+ld t3,  0(t1)
+sd t3,  0(t0)
+sd t2,  0(t1)
+ld t2,  8(t0)
+ld t3,  8(t1)
+sd t3,  8(t0)
+sd t2,  8(t1)
+ld t2,  16(t0)
+ld t3,  16(t1)
+sd t3,  16(t0)
+sd t2,  16(t1)
+ld t2,  24(t0)
+ld t3,  24(t1)
+sd t3,  24(t0)
+sd t2,  24(t1)
+# POP 
+li a0,  2
+jal ra,  deduct_gas
+addi s3,  s3,  -1    # Decrement stack pointer
+# PUSH2 01f9
+li a0,  9
+jal ra,  deduct_gas
+# PUSH 01f9
+li a0,  6
+jal ra,  deduct_gas
+slli t1,  s3,  5          # Stack offset = s3 * 32
+add  t1,  s2,  t1         # Address = stack base + offset
+li t0,  0x00000000000001f9       # Limb 0(lowest 64 bits)
+sd t0,  0(t1)
+li t0,  0x0000000000000000       # Limb 1
+sd t0,  8(t1)
+li t0,  0x0000000000000000       # Limb 2
+sd t0,  16(t1)
+li t0,  0x0000000000000000       # Limb 3(highest bits)
+sd t0,  24(t1)
+addi s3,  s3,  1          # Increment stack pointer
+# DUP4 
+li a0,  7
+jal ra,  deduct_gas
+# DUP4
+addi t0,  s3,  -4       # Index to duplicate
+slli t0,  t0,  5          # Offset = t0 * 32
+add  t0,  s2,  t0         # Src address
+slli t1,  s3,  5          # Dest offset = s3 * 32
+add  t1,  s2,  t1         # Dest address
+ld   t2,  0(t0)         # limb0
+ld   t3,  8(t0)         # limb1
+ld   t4,  16(t0)        # limb2
+ld   t5,  24(t0)        # limb3
+sd   t2,  0(t1)
+sd   t3,  8(t1)
+sd   t4,  16(t1)
+sd   t5,  24(t1)
+addi s3,  s3,  1          # Push duplicate
+# PUSH2 00fe
+li a0,  9
+jal ra,  deduct_gas
+# PUSH 00fe
+li a0,  6
+jal ra,  deduct_gas
+slli t1,  s3,  5          # Stack offset = s3 * 32
+add  t1,  s2,  t1         # Address = stack base + offset
+li t0,  0x00000000000000fe       # Limb 0(lowest 64 bits)
+sd t0,  0(t1)
+li t0,  0x0000000000000000       # Limb 1
+sd t0,  8(t1)
+li t0,  0x0000000000000000       # Limb 2
+sd t0,  16(t1)
+li t0,  0x0000000000000000       # Limb 3(highest bits)
+sd t0,  24(t1)
+addi s3,  s3,  1          # Increment stack pointer
+# JUMP 
+li a0,  8
+jal ra,  deduct_gas
+# JUMP - unconditional jump to JUMPDEST
+addi s3,  s3,  -1
+slli t0,  s3,  5
+add  t0,  s2,  t0
+ld   t1,  0(t0)        # jump target
+slli t1,  t1,  2         # index * 4
+la   t2,  jumpdest_table
+add  t2,  t2,  t1
+lw   t3,  0(t2)        # actual label address
+jr   t3                # jump
+# JUMPDEST 
+li a0,  3
+jal ra,  deduct_gas
+jumpdest_42:
+li a0,  3
+jal ra,  deduct_gas
+# SWAP3 
+li a0,  6
+jal ra,  deduct_gas
+# SWAP3
+li a0,  3
+jal ra,  deduct_gas
+addi t0,  s3,  -1         # Top index
+addi t1,  s3,  -4     # Swap index
+slli t0,  t0,  5
+slli t1,  t1,  5
+add  t0,  s2,  t0         # Addr1
+add  t1,  s2,  t1         # Addr2
+ld t2,  0(t0)
+ld t3,  0(t1)
+sd t3,  0(t0)
+sd t2,  0(t1)
+ld t2,  8(t0)
+ld t3,  8(t1)
+sd t3,  8(t0)
+sd t2,  8(t1)
+ld t2,  16(t0)
+ld t3,  16(t1)
+sd t3,  16(t0)
+sd t2,  16(t1)
+ld t2,  24(t0)
+ld t3,  24(t1)
+sd t3,  24(t0)
+sd t2,  24(t1)
+# POP 
+li a0,  2
+jal ra,  deduct_gas
+addi s3,  s3,  -1    # Decrement stack pointer
+# DUP3 
+li a0,  6
+jal ra,  deduct_gas
+# DUP3
+addi t0,  s3,  -3       # Index to duplicate
+slli t0,  t0,  5          # Offset = t0 * 32
+add  t0,  s2,  t0         # Src address
+slli t1,  s3,  5          # Dest offset = s3 * 32
+add  t1,  s2,  t1         # Dest address
+ld   t2,  0(t0)         # limb0
+ld   t3,  8(t0)         # limb1
+ld   t4,  16(t0)        # limb2
+ld   t5,  24(t0)        # limb3
+sd   t2,  0(t1)
+sd   t3,  8(t1)
+sd   t4,  16(t1)
+sd   t5,  24(t1)
+addi s3,  s3,  1          # Push duplicate
+# DUP3 
+li a0,  6
+jal ra,  deduct_gas
+# DUP3
+addi t0,  s3,  -3       # Index to duplicate
+slli t0,  t0,  5          # Offset = t0 * 32
+add  t0,  s2,  t0         # Src address
+slli t1,  s3,  5          # Dest offset = s3 * 32
+add  t1,  s2,  t1         # Dest address
+ld   t2,  0(t0)         # limb0
+ld   t3,  8(t0)         # limb1
+ld   t4,  16(t0)        # limb2
+ld   t5,  24(t0)        # limb3
+sd   t2,  0(t1)
+sd   t3,  8(t1)
+sd   t4,  16(t1)
+sd   t5,  24(t1)
+addi s3,  s3,  1          # Push duplicate
+# SUB 
+li a0,  3
+jal ra,  deduct_gas
+# 256-bit SUB (4 limbs)
+addi s3,  s3,  -2
+slli t0,  s3,  5
+add  t0,  s2,  t0
+ld t1,  0(t0)          # B limb0
+ld t2,  8(t0)          # B limb1
+ld t3,  16(t0)         # B limb2
+ld t4,  24(t0)         # B limb3
+ld t5,  32(t0)         # A limb0
+ld t6,  40(t0)         # A limb1
+ld a0,  48(t0)         # A limb2
+ld a1,  56(t0)         # A limb3
+sub s4,  t5,  t1         # res0 = a0 - b0
+sltu s5,  t5,  t1        # borrow0 = a0 < b0
+sub s6,  t6,  t2         # res1 = a1 - b1
+sub s6,  s6,  s5         # res1 -= borrow0
+sltu s5,  t6,  t2        # borrow1 = a1 < b1
+sltu a2,  s6,  s5
+or   s5,  s5,  a2
+sub s10,  a0,  t3
+sub s10,  s10,  s5
+sltu s5,  a0,  t3
+sltu a2,  s10,  s5
+or   s5,  s5,  a2
+sub s11,  a1,  t4
+sub s11,  s11,  s5
+sd s4,  0(t0)
+sd s6,  8(t0)
+sd s10,  16(t0)
+sd s11,  24(t0)
+addi s3,  s3,  1
+# SWAP1 
+li a0,  4
+jal ra,  deduct_gas
+# SWAP1
+li a0,  3
+jal ra,  deduct_gas
+addi t0,  s3,  -1         # Top index
+addi t1,  s3,  -2     # Swap index
+slli t0,  t0,  5
+slli t1,  t1,  5
+add  t0,  s2,  t0         # Addr1
+add  t1,  s2,  t1         # Addr2
+ld t2,  0(t0)
+ld t3,  0(t1)
+sd t3,  0(t0)
+sd t2,  0(t1)
+ld t2,  8(t0)
+ld t3,  8(t1)
+sd t3,  8(t0)
+sd t2,  8(t1)
+ld t2,  16(t0)
+ld t3,  16(t1)
+sd t3,  16(t0)
+sd t2,  16(t1)
+ld t2,  24(t0)
+ld t3,  24(t1)
+sd t3,  24(t0)
+sd t2,  24(t1)
+# POP 
+li a0,  2
+jal ra,  deduct_gas
+addi s3,  s3,  -1    # Decrement stack pointer
+# DUP2 
+li a0,  5
+jal ra,  deduct_gas
+# DUP2
+addi t0,  s3,  -2       # Index to duplicate
+slli t0,  t0,  5          # Offset = t0 * 32
+add  t0,  s2,  t0         # Src address
+slli t1,  s3,  5          # Dest offset = s3 * 32
+add  t1,  s2,  t1         # Dest address
+ld   t2,  0(t0)         # limb0
+ld   t3,  8(t0)         # limb1
+ld   t4,  16(t0)        # limb2
+ld   t5,  24(t0)        # limb3
+sd   t2,  0(t1)
+sd   t3,  8(t1)
+sd   t4,  16(t1)
+sd   t5,  24(t1)
+addi s3,  s3,  1          # Push duplicate
+# DUP2 
+li a0,  5
+jal ra,  deduct_gas
+# DUP2
+addi t0,  s3,  -2       # Index to duplicate
+slli t0,  t0,  5          # Offset = t0 * 32
+add  t0,  s2,  t0         # Src address
+slli t1,  s3,  5          # Dest offset = s3 * 32
+add  t1,  s2,  t1         # Dest address
+ld   t2,  0(t0)         # limb0
+ld   t3,  8(t0)         # limb1
+ld   t4,  16(t0)        # limb2
+ld   t5,  24(t0)        # limb3
+sd   t2,  0(t1)
+sd   t3,  8(t1)
+sd   t4,  16(t1)
+sd   t5,  24(t1)
+addi s3,  s3,  1          # Push duplicate
+# GT 
+li a0,  3
+jal ra,  deduct_gas
+# GT - unsigned 256-bit greater-than
+addi s3,  s3,  -2
+slli t0,  s3,  5
+add  t0,  s2,  t0
+ld t1,  24(t0)  # a limb3
+ld t2,  56(t0)       # b limb3
+blt t1,  t2,  gt_true_2
+bgt t1,  t2,  gt_false_2
+ld t1,  16(t0)  # a limb2
+ld t2,  48(t0)       # b limb2
+blt t1,  t2,  gt_true_2
+bgt t1,  t2,  gt_false_2
+ld t1,  8(t0)  # a limb1
+ld t2,  40(t0)       # b limb1
+blt t1,  t2,  gt_true_2
+bgt t1,  t2,  gt_false_2
+ld t1,  0(t0)  # a limb0
+ld t2,  32(t0)       # b limb0
+blt t1,  t2,  gt_true_2
+bgt t1,  t2,  gt_false_2
+li s0,  0
+j gt_done_2
+gt_true_2:
+li s0,  1
+j gt_done_2
+gt_false_2:
+li s0,  0
+gt_done_2:
+sd s0,  0(t0)
+sd zero,  8(t0)
+sd zero,  16(t0)
+sd zero,  24(t0)
+addi s3,  s3,  1
+# ISZERO 
+li a0,  3
+jal ra,  deduct_gas
+# ISZERO - 256-bit check if value == 0
+addi s3,  s3,  -1
+slli t0,  s3,  5
+add  t0,  s2,  t0
+ld t1,  0(t0)
+ld t2,  8(t0)
+ld t3,  16(t0)
+ld t4,  24(t0)
+or  s0,  t1,  t2
+or  s0,  s0,  t3
+or  s0,  s0,  t4
+seqz s0,  s0
+sd   s0,  0(t0)
+sd   zero,  8(t0)
+sd   zero,  16(t0)
+sd   zero,  24(t0)
+addi s3,  s3,  1
+# PUSH2 0211
+li a0,  9
+jal ra,  deduct_gas
+# PUSH 0211
+li a0,  6
+jal ra,  deduct_gas
+slli t1,  s3,  5          # Stack offset = s3 * 32
+add  t1,  s2,  t1         # Address = stack base + offset
+li t0,  0x0000000000000211       # Limb 0(lowest 64 bits)
+sd t0,  0(t1)
+li t0,  0x0000000000000000       # Limb 1
+sd t0,  8(t1)
+li t0,  0x0000000000000000       # Limb 2
+sd t0,  16(t1)
+li t0,  0x0000000000000000       # Limb 3(highest bits)
+sd t0,  24(t1)
+addi s3,  s3,  1          # Increment stack pointer
+# JUMPI 
+li a0,  10
+jal ra,  deduct_gas
+# JUMPI - conditional jump if cond ≠ 0
+li a0,  10
+jal ra,  deduct_gas
+addi s3,  s3,  -2
+slli t0,  s3,  5
+add  t0,  s2,  t0
+ld   t1,  0(t0)        # jump target
+ld   t2,  8(t0)        # condition
+beqz t2,  jumpi_skip_8
+slli t1,  t1,  2
+la   t3,  jumpdest_table
+add  t3,  t3,  t1
+lw   t4,  0(t3)        # load label
+jr   t4
+jumpi_skip_8:
+# PUSH2 0210
+li a0,  9
+jal ra,  deduct_gas
+# PUSH 0210
+li a0,  6
+jal ra,  deduct_gas
+slli t1,  s3,  5          # Stack offset = s3 * 32
+add  t1,  s2,  t1         # Address = stack base + offset
+li t0,  0x0000000000000210       # Limb 0(lowest 64 bits)
+sd t0,  0(t1)
+li t0,  0x0000000000000000       # Limb 1
+sd t0,  8(t1)
+li t0,  0x0000000000000000       # Limb 2
+sd t0,  16(t1)
+li t0,  0x0000000000000000       # Limb 3(highest bits)
+sd t0,  24(t1)
+addi s3,  s3,  1          # Increment stack pointer
+# PUSH2 0184
+li a0,  9
+jal ra,  deduct_gas
+# PUSH 0184
+li a0,  6
+jal ra,  deduct_gas
+slli t1,  s3,  5          # Stack offset = s3 * 32
+add  t1,  s2,  t1         # Address = stack base + offset
+li t0,  0x0000000000000184       # Limb 0(lowest 64 bits)
+sd t0,  0(t1)
+li t0,  0x0000000000000000       # Limb 1
+sd t0,  8(t1)
+li t0,  0x0000000000000000       # Limb 2
+sd t0,  16(t1)
+li t0,  0x0000000000000000       # Limb 3(highest bits)
+sd t0,  24(t1)
+addi s3,  s3,  1          # Increment stack pointer
+# JUMP 
+li a0,  8
+jal ra,  deduct_gas
+# JUMP - unconditional jump to JUMPDEST
+addi s3,  s3,  -1
+slli t0,  s3,  5
+add  t0,  s2,  t0
+ld   t1,  0(t0)        # jump target
+slli t1,  t1,  2         # index * 4
+la   t2,  jumpdest_table
+add  t2,  t2,  t1
+lw   t3,  0(t2)        # actual label address
+jr   t3                # jump
+# JUMPDEST 
+li a0,  3
+jal ra,  deduct_gas
+jumpdest_43:
+li a0,  3
+jal ra,  deduct_gas
+# JUMPDEST 
+li a0,  3
+jal ra,  deduct_gas
+jumpdest_44:
 li a0,  3
 jal ra,  deduct_gas
 # SWAP3 
