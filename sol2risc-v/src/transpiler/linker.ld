@@ -2,7 +2,7 @@ ENTRY(_start)
 MEMORY
 {
   TEXT (rx) : ORIGIN = 0x10000, LENGTH = 0xa710
-  DATA (rw) : ORIGIN = 0x1a710, LENGTH = 0x6000
+  DATA (rw) : ORIGIN = 0x1a710, LENGTH = 0x10000  /* Extend to 0x1b710 */
 }
 SECTIONS
 {
