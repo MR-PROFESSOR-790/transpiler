@@ -6421,24 +6421,24 @@ ld t3,  48(t0)     # A limb2
 ld t4,  56(t0)     # A limb3
 ld t5,  0(t0)      # B limb0
 ld t6,  8(t0)      # B limb1
-ld a0,  16(t0)     # B limb2
-ld a1,  24(t0)     # B limb3
+ld t7,  16(t0)     # B limb2
+ld t8,  24(t0)     # B limb3
 mul s0,  t1,  t5     # r0 = a0 * b0
 mul s1,  t1,  t6     # r1 = a0 * b1
-mul t9,  t2,  t5     # + a1 * b0
-add s1,  s1,  t9
+mul a0,  t2,  t5     # + a1 * b0
+add s1,  s1,  a0
 mul s2,  t1,  t7     # r2 = a0 * b2
-mul t9,  t2,  t6     # + a1 * b1
-add s2,  s2,  t9
-mul t9,  t3,  t5     # + a2 * b0
-add s2,  s2,  t9
+mul a0,  t2,  t6     # + a1 * b1
+add s2,  s2,  a0
+mul a0,  t3,  t5     # + a2 * b0
+add s2,  s2,  a0
 mul s3,  t1,  t8     # r3 = a0 * b3
-mul t9,  t2,  t7
-add s3,  s3,  t9
-mul t9,  t3,  t6
-add s3,  s3,  t9
-mul t9,  t4,  t5
-add s3,  s3,  t9
+mul a0,  t2,  t7     # + a1 * b2
+add s3,  s3,  a0
+mul a0,  t3,  t6     # + a2 * b1
+add s3,  s3,  a0
+mul a0,  t4,  t5     # + a3 * b0
+add s3,  s3,  a0
 sd s0,  0(t0)
 sd s1,  8(t0)
 sd s2,  16(t0)
