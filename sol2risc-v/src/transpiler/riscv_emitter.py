@@ -29,6 +29,8 @@ class RiscvEmitter:
         self.jumpdest_counter  = 0
         self.jumpi_counter = 0
         self.compare_counter = 0
+        self.mstore_counter = 0
+        self.mstore8_counter = 0
 
     def set_context(self, context):
         """Set compilation context."""
@@ -700,7 +702,10 @@ class RiscvEmitter:
                 continue
 
             # Memory operations
+            # Corrected MSTORE and MSTORE8 for riscv_emitter.py
             elif opcode == "MSTORE":
+                label_id = self.mstore_counter
+                self.mstore_counter +=1
                 riscv_lines.append("# MSTORE - store 256-bit word to memory")
                 riscv_lines.append("addi s3, s3, -2              # Pop offset and value")
                 riscv_lines.append("slli t0, s3, 5               # Stack offset = s3 * 32")
@@ -710,23 +715,39 @@ class RiscvEmitter:
                 riscv_lines.append("ld   t3, 16(t0)              # val limb1")
                 riscv_lines.append("ld   t4, 24(t0)              # val limb2")
                 riscv_lines.append("ld   t5, 32(t0)              # val limb3")
+                riscv_lines.append("li   t0, 0x10000             # Memory bound")
+                riscv_lines.append(f"bgeu t1, t0, mstore_out_of_bounds_mstore_{label_id} # Check offset")
                 riscv_lines.append("add  t1, t1, s0              # effective addr = offset + MEM_BASE")
-                riscv_lines.append("sd   t2, 0(t1)")
+                riscv_lines.append("sd   t2, 0(t1)               # Store 256-bit value")
                 riscv_lines.append("sd   t3, 8(t1)")
                 riscv_lines.append("sd   t4, 16(t1)")
                 riscv_lines.append("sd   t5, 24(t1)")
+                riscv_lines.append(f"j    mstore_done_mstore_{label_id}")
+                riscv_lines.append(f"mstore_out_of_bounds_mstore_{label_id}:")
+                riscv_lines.append("li   a0, 0                   # Revert")
+                riscv_lines.append("j    revert")
+                riscv_lines.append(f"mstore_done_mstore_{label_id}:")
                 continue
-            
+
             elif opcode == "MSTORE8":
+                label_id = self.mstore8_counter
+                self.mstore8_counter +=1
                 riscv_lines.append("# MSTORE8 - store least significant byte to memory")
                 riscv_lines.append("addi s3, s3, -2              # Pop offset and value")
                 riscv_lines.append("slli t0, s3, 5")
                 riscv_lines.append("add  t0, s2, t0")
                 riscv_lines.append("ld   t1, 0(t0)               # offset")
                 riscv_lines.append("ld   t2, 8(t0)               # value (only lowest byte matters)")
+                riscv_lines.append("li   t0, 0x10000             # Memory bound")
+                riscv_lines.append(f"bgeu t1, t0, mstore8_out_of_bounds_mstore8_{label_id} # Check offset")
                 riscv_lines.append("add  t1, t1, s0              # addr = offset + MEM_BASE")
                 riscv_lines.append("andi t2, t2, 0xff            # Mask to 1 byte")
-                riscv_lines.append("sb   t2, 0(t1)")
+                riscv_lines.append("sb   t2, 0(t1)               # Store byte")
+                riscv_lines.append(f"j    mstore8_done_mstore8_{label_id}")
+                riscv_lines.append(f"mstore8_out_of_bounds_mstore8_{label_id}:")
+                riscv_lines.append("li   a0, 0                   # Revert")
+                riscv_lines.append("j    revert")
+                riscv_lines.append(f"mstore8_done_mstore8_{label_id}:")
                 continue
 
             elif opcode == "MLOAD":
@@ -943,7 +964,7 @@ class RiscvEmitter:
                     riscv_lines.append(f"addi s3, s3, {stack_effect} # Adjust stack for unimplemented opcode")
         
         return riscv_lines
-
+        
     def emit_gas_cost(self, opcode: str) -> str:
         """
         Emit gas deduction line for given opcode.
@@ -1091,6 +1112,13 @@ class RiscvEmitter:
         output.append("")
 
         output.extend(self._finalize_lines(assembly_code))
+        output.append("")
+        output.append("# Revert handler - signal failure and halt execution")
+        output.append("revert:")
+        output.append("li   a0, 0                   # Failure code (revert)")
+        output.append("li   t0, 0x1c820             # tohost address")
+        output.append("sd   a0, 0(t0)               # Write to tohost to signal failure")
+        output.append("1: j 1b                         # Infinite loop to halt")
         return "\n".join(output) + "\n"
 
     def write_output_file(self, assembly_code: str, output_file: str):

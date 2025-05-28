@@ -67,11 +67,18 @@ ld   t2,  8(t0)              # val limb0
 ld   t3,  16(t0)             # val limb1
 ld   t4,  24(t0)             # val limb2
 ld   t5,  32(t0)             # val limb3
+li   t0,  0x10000             # Memory bound
+bgeu t1,  t0,  mstore_out_of_bounds_mstore_0 # Check offset
 add  t1,  t1,  s0              # effective addr = offset + MEM_BASE
-sd   t2,  0(t1)
+sd   t2,  0(t1)              # Store 256-bit value
 sd   t3,  8(t1)
 sd   t4,  16(t1)
 sd   t5,  24(t1)
+j    mstore_done_mstore_0
+mstore_out_of_bounds_mstore_0:
+li   a0,  0                   # Revert
+j    revert
+mstore_done_mstore_0:
 # PUSH1 0a
 li a0,  6
 jal ra,  deduct_gas
@@ -5684,11 +5691,18 @@ ld   t2,  8(t0)              # val limb0
 ld   t3,  16(t0)             # val limb1
 ld   t4,  24(t0)             # val limb2
 ld   t5,  32(t0)             # val limb3
+li   t0,  0x10000             # Memory bound
+bgeu t1,  t0,  mstore_out_of_bounds_mstore_1 # Check offset
 add  t1,  t1,  s0              # effective addr = offset + MEM_BASE
-sd   t2,  0(t1)
+sd   t2,  0(t1)              # Store 256-bit value
 sd   t3,  8(t1)
 sd   t4,  16(t1)
 sd   t5,  24(t1)
+j    mstore_done_mstore_1
+mstore_out_of_bounds_mstore_1:
+li   a0,  0                   # Revert
+j    revert
+mstore_done_mstore_1:
 # SWAP1 
 li a0,  4
 jal ra,  deduct_gas
@@ -8154,3 +8168,10 @@ jr   ra
 .align 5
 evm_stack: .space 4096
 .section .text
+
+# Revert handler - signal failure and halt execution
+revert:
+li   a0, 0                   # Failure code (revert)
+li   t0, 0x1c820             # tohost address
+sd   a0, 0(t0)               # Write to tohost to signal failure
+1: j 1b                         # Infinite loop to halt

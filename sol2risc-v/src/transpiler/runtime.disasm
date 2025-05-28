@@ -1,0 +1,581 @@
+
+runtime.o:     file format elf64-littleriscv
+
+
+Disassembly of section .text:
+
+0000000000000000 <_start>:
+   0:	00120137          	lui	sp,0x120
+   4:	000012b7          	lui	t0,0x1
+   8:	00510133          	add	sp,sp,t0
+   c:	ff017113          	andi	sp,sp,-16
+  10:	fc010113          	addi	sp,sp,-64 # 11ffc0 <CALLDATA_BASE+0xffc0>
+  14:	00113023          	sd	ra,0(sp)
+  18:	00813423          	sd	s0,8(sp)
+  1c:	00913823          	sd	s1,16(sp)
+  20:	01213c23          	sd	s2,24(sp)
+  24:	03313023          	sd	s3,32(sp)
+  28:	03413423          	sd	s4,40(sp)
+  2c:	03513823          	sd	s5,48(sp)
+  30:	03613c23          	sd	s6,56(sp)
+  34:	00100437          	lui	s0,0x100
+  38:	000f44b7          	lui	s1,0xf4
+  3c:	2404849b          	addiw	s1,s1,576 # f4240 <STACK_SIZE+0xf3240>
+  40:	00000a13          	li	s4,0
+  44:	00000a93          	li	s5,0
+  48:	001002b7          	lui	t0,0x100
+  4c:	00000313          	li	t1,0
+  50:	20000393          	li	t2,512
+
+0000000000000054 <.clear_mem>:
+  54:	00038a63          	beqz	t2,68 <.clear_mem_done>
+  58:	00628023          	sb	t1,0(t0) # 100000 <MEM_BASE>
+  5c:	00128293          	addi	t0,t0,1
+  60:	fff38393          	addi	t2,t2,-1
+  64:	ff1ff06f          	j	54 <.clear_mem>
+
+0000000000000068 <.clear_mem_done>:
+  68:	001102b7          	lui	t0,0x110
+  6c:	08000393          	li	t2,128
+
+0000000000000070 <.clear_calldata>:
+  70:	00038a63          	beqz	t2,84 <.clear_calldata_done>
+  74:	00628023          	sb	t1,0(t0) # 110000 <CALLDATA_BASE>
+  78:	00128293          	addi	t0,t0,1
+  7c:	fff38393          	addi	t2,t2,-1
+  80:	ff1ff06f          	j	70 <.clear_calldata>
+
+0000000000000084 <.clear_calldata_done>:
+  84:	00000297          	auipc	t0,0x0
+  88:	00028293          	mv	t0,t0
+  8c:	00000313          	li	t1,0
+  90:	0062a023          	sw	t1,0(t0) # 84 <.clear_calldata_done>
+  94:	00000097          	auipc	ra,0x0
+  98:	000080e7          	jalr	ra # 94 <.clear_calldata_done+0x10>
+  9c:	00013083          	ld	ra,0(sp)
+  a0:	00813403          	ld	s0,8(sp)
+  a4:	01013483          	ld	s1,16(sp)
+  a8:	01813903          	ld	s2,24(sp)
+  ac:	02013983          	ld	s3,32(sp)
+  b0:	02813a03          	ld	s4,40(sp)
+  b4:	03013a83          	ld	s5,48(sp)
+  b8:	03813b03          	ld	s6,56(sp)
+  bc:	04010113          	addi	sp,sp,64
+  c0:	05d00893          	li	a7,93
+  c4:	00000513          	li	a0,0
+  c8:	00000073          	ecall
+
+00000000000000cc <safe_call_evm>:
+  cc:	ff010113          	addi	sp,sp,-16
+  d0:	00113423          	sd	ra,8(sp)
+  d4:	00000097          	auipc	ra,0x0
+  d8:	000080e7          	jalr	ra # d4 <safe_call_evm+0x8>
+  dc:	00813083          	ld	ra,8(sp)
+  e0:	01010113          	addi	sp,sp,16
+  e4:	00008067          	ret
+
+00000000000000e8 <stack_push_256>:
+  e8:	fe010113          	addi	sp,sp,-32
+  ec:	00a13023          	sd	a0,0(sp)
+  f0:	00b13423          	sd	a1,8(sp)
+  f4:	00c13823          	sd	a2,16(sp)
+  f8:	00d13c23          	sd	a3,24(sp)
+  fc:	00008067          	ret
+
+0000000000000100 <stack_pop_256>:
+ 100:	00013503          	ld	a0,0(sp)
+ 104:	00813583          	ld	a1,8(sp)
+ 108:	01013603          	ld	a2,16(sp)
+ 10c:	01813683          	ld	a3,24(sp)
+ 110:	02010113          	addi	sp,sp,32
+ 114:	00008067          	ret
+
+0000000000000118 <deduct_gas>:
+ 118:	ff010113          	addi	sp,sp,-16
+ 11c:	00113423          	sd	ra,8(sp)
+ 120:	00905e63          	blez	s1,13c <.gas_already_zero>
+ 124:	40a484b3          	sub	s1,s1,a0
+ 128:	0004d463          	bgez	s1,130 <.gas_ok>
+ 12c:	00000493          	li	s1,0
+
+0000000000000130 <.gas_ok>:
+ 130:	00813083          	ld	ra,8(sp)
+ 134:	01010113          	addi	sp,sp,16
+ 138:	00008067          	ret
+
+000000000000013c <.gas_already_zero>:
+ 13c:	00000493          	li	s1,0
+ 140:	00813083          	ld	ra,8(sp)
+ 144:	01010113          	addi	sp,sp,16
+ 148:	00008067          	ret
+
+000000000000014c <get_call_value>:
+ 14c:	00000513          	li	a0,0
+ 150:	00000593          	li	a1,0
+ 154:	00000613          	li	a2,0
+ 158:	00000693          	li	a3,0
+ 15c:	00008067          	ret
+
+0000000000000160 <calldatasize>:
+ 160:	00000297          	auipc	t0,0x0
+ 164:	00028293          	mv	t0,t0
+ 168:	0002a503          	lw	a0,0(t0) # 160 <calldatasize>
+ 16c:	00008067          	ret
+
+0000000000000170 <calldataload>:
+ 170:	ff010113          	addi	sp,sp,-16
+ 174:	00113423          	sd	ra,8(sp)
+ 178:	f89ff0ef          	jal	100 <stack_pop_256>
+ 17c:	00000297          	auipc	t0,0x0
+ 180:	00028293          	mv	t0,t0
+ 184:	0002a303          	lw	t1,0(t0) # 17c <calldataload+0xc>
+ 188:	00656463          	bltu	a0,t1,190 <.valid_offset>
+ 18c:	0700006f          	j	1fc <calldataload_oob>
+
+0000000000000190 <.valid_offset>:
+ 190:	00050293          	mv	t0,a0
+ 194:	00110337          	lui	t1,0x110
+ 198:	005302b3          	add	t0,t1,t0
+ 19c:	00000e17          	auipc	t3,0x0
+ 1a0:	000e0e13          	mv	t3,t3
+ 1a4:	000e2e03          	lw	t3,0(t3) # 19c <.valid_offset+0xc>
+ 1a8:	01c30333          	add	t1,t1,t3
+ 1ac:	00000513          	li	a0,0
+ 1b0:	00000593          	li	a1,0
+ 1b4:	00000613          	li	a2,0
+ 1b8:	00000693          	li	a3,0
+ 1bc:	02028393          	addi	t2,t0,32
+ 1c0:	02736663          	bltu	t1,t2,1ec <calldataload_done>
+ 1c4:	0002b503          	ld	a0,0(t0)
+ 1c8:	01028393          	addi	t2,t0,16
+ 1cc:	02736063          	bltu	t1,t2,1ec <calldataload_done>
+ 1d0:	0082b583          	ld	a1,8(t0)
+ 1d4:	01828393          	addi	t2,t0,24
+ 1d8:	00736a63          	bltu	t1,t2,1ec <calldataload_done>
+ 1dc:	0102b603          	ld	a2,16(t0)
+ 1e0:	02028393          	addi	t2,t0,32
+ 1e4:	00736463          	bltu	t1,t2,1ec <calldataload_done>
+ 1e8:	0182b683          	ld	a3,24(t0)
+
+00000000000001ec <calldataload_done>:
+ 1ec:	efdff0ef          	jal	e8 <stack_push_256>
+ 1f0:	00813083          	ld	ra,8(sp)
+ 1f4:	01010113          	addi	sp,sp,16
+ 1f8:	00008067          	ret
+
+00000000000001fc <calldataload_oob>:
+ 1fc:	00000513          	li	a0,0
+ 200:	00000593          	li	a1,0
+ 204:	00000613          	li	a2,0
+ 208:	00000693          	li	a3,0
+ 20c:	eddff0ef          	jal	e8 <stack_push_256>
+ 210:	00813083          	ld	ra,8(sp)
+ 214:	01010113          	addi	sp,sp,16
+ 218:	00008067          	ret
+
+000000000000021c <calldataload_partial1>:
+ 21c:	00000593          	li	a1,0
+
+0000000000000220 <calldataload_partial2>:
+ 220:	00000613          	li	a2,0
+
+0000000000000224 <calldataload_partial3>:
+ 224:	00000693          	li	a3,0
+ 228:	ec1ff0ef          	jal	e8 <stack_push_256>
+ 22c:	00813083          	ld	ra,8(sp)
+ 230:	01010113          	addi	sp,sp,16
+ 234:	00008067          	ret
+
+0000000000000238 <calldatacopy>:
+ 238:	ff010113          	addi	sp,sp,-16
+ 23c:	00113423          	sd	ra,8(sp)
+ 240:	00c05c63          	blez	a2,258 <calldatacopy_done>
+ 244:	00a40533          	add	a0,s0,a0
+ 248:	001102b7          	lui	t0,0x110
+ 24c:	00b285b3          	add	a1,t0,a1
+ 250:	00000097          	auipc	ra,0x0
+ 254:	000080e7          	jalr	ra # 250 <calldatacopy+0x18>
+
+0000000000000258 <calldatacopy_done>:
+ 258:	00813083          	ld	ra,8(sp)
+ 25c:	01010113          	addi	sp,sp,16
+ 260:	00008067          	ret
+
+0000000000000264 <mload>:
+ 264:	ff010113          	addi	sp,sp,-16
+ 268:	00113423          	sd	ra,8(sp)
+ 26c:	00008337          	lui	t1,0x8
+ 270:	02657a63          	bgeu	a0,t1,2a4 <mload_out_of_bounds>
+ 274:	00a402b3          	add	t0,s0,a0
+ 278:	00100337          	lui	t1,0x100
+ 27c:	000103b7          	lui	t2,0x10
+ 280:	00730e33          	add	t3,t1,t2
+ 284:	03c2f063          	bgeu	t0,t3,2a4 <mload_out_of_bounds>
+ 288:	0002b503          	ld	a0,0(t0) # 110000 <CALLDATA_BASE>
+ 28c:	0082b583          	ld	a1,8(t0)
+ 290:	0102b603          	ld	a2,16(t0)
+ 294:	0182b683          	ld	a3,24(t0)
+ 298:	00813083          	ld	ra,8(sp)
+ 29c:	01010113          	addi	sp,sp,16
+ 2a0:	00008067          	ret
+
+00000000000002a4 <mload_out_of_bounds>:
+ 2a4:	00000513          	li	a0,0
+ 2a8:	00000593          	li	a1,0
+ 2ac:	00000613          	li	a2,0
+ 2b0:	00000693          	li	a3,0
+ 2b4:	00813083          	ld	ra,8(sp)
+ 2b8:	01010113          	addi	sp,sp,16
+ 2bc:	00008067          	ret
+
+00000000000002c0 <mstore>:
+ 2c0:	ff010113          	addi	sp,sp,-16
+ 2c4:	00113423          	sd	ra,8(sp)
+ 2c8:	00008337          	lui	t1,0x8
+ 2cc:	02657263          	bgeu	a0,t1,2f0 <mstore_out_of_bounds>
+ 2d0:	00a402b3          	add	t0,s0,a0
+ 2d4:	00b2b023          	sd	a1,0(t0)
+ 2d8:	00c2b423          	sd	a2,8(t0)
+ 2dc:	00d2b823          	sd	a3,16(t0)
+ 2e0:	00e2bc23          	sd	a4,24(t0)
+ 2e4:	00813083          	ld	ra,8(sp)
+ 2e8:	01010113          	addi	sp,sp,16
+ 2ec:	00008067          	ret
+
+00000000000002f0 <mstore_out_of_bounds>:
+ 2f0:	00813083          	ld	ra,8(sp)
+ 2f4:	01010113          	addi	sp,sp,16
+ 2f8:	00008067          	ret
+
+00000000000002fc <mstore8>:
+ 2fc:	00010337          	lui	t1,0x10
+ 300:	00657863          	bgeu	a0,t1,310 <mstore8_out_of_bounds>
+ 304:	00a402b3          	add	t0,s0,a0
+ 308:	00b28023          	sb	a1,0(t0)
+ 30c:	00008067          	ret
+
+0000000000000310 <mstore8_out_of_bounds>:
+ 310:	00008067          	ret
+
+0000000000000314 <keccak256>:
+ 314:	00000513          	li	a0,0
+ 318:	00000593          	li	a1,0
+ 31c:	00000613          	li	a2,0
+ 320:	00000693          	li	a3,0
+ 324:	00008067          	ret
+
+0000000000000328 <add256>:
+ 328:	ff810113          	addi	sp,sp,-8
+ 32c:	00113023          	sd	ra,0(sp)
+ 330:	00000293          	li	t0,0
+ 334:	00e50533          	add	a0,a0,a4
+ 338:	00e532b3          	sltu	t0,a0,a4
+ 33c:	00f585b3          	add	a1,a1,a5
+ 340:	005585b3          	add	a1,a1,t0
+ 344:	0055b333          	sltu	t1,a1,t0
+ 348:	00030293          	mv	t0,t1
+ 34c:	01060633          	add	a2,a2,a6
+ 350:	00560633          	add	a2,a2,t0
+ 354:	00563333          	sltu	t1,a2,t0
+ 358:	00030293          	mv	t0,t1
+ 35c:	011686b3          	add	a3,a3,a7
+ 360:	005686b3          	add	a3,a3,t0
+ 364:	00013083          	ld	ra,0(sp)
+ 368:	00810113          	addi	sp,sp,8
+ 36c:	00008067          	ret
+
+0000000000000370 <sub256>:
+ 370:	ff810113          	addi	sp,sp,-8
+ 374:	00113023          	sd	ra,0(sp)
+ 378:	00000293          	li	t0,0
+ 37c:	40e50533          	sub	a0,a0,a4
+ 380:	00a732b3          	sltu	t0,a4,a0
+ 384:	40f585b3          	sub	a1,a1,a5
+ 388:	405585b3          	sub	a1,a1,t0
+ 38c:	00b7b333          	sltu	t1,a5,a1
+ 390:	0062e2b3          	or	t0,t0,t1
+ 394:	41060633          	sub	a2,a2,a6
+ 398:	40560633          	sub	a2,a2,t0
+ 39c:	00c83333          	sltu	t1,a6,a2
+ 3a0:	0062e2b3          	or	t0,t0,t1
+ 3a4:	411686b3          	sub	a3,a3,a7
+ 3a8:	405686b3          	sub	a3,a3,t0
+ 3ac:	00013083          	ld	ra,0(sp)
+ 3b0:	00810113          	addi	sp,sp,8
+ 3b4:	00008067          	ret
+
+00000000000003b8 <mul256>:
+ 3b8:	00000513          	li	a0,0
+ 3bc:	00000593          	li	a1,0
+ 3c0:	00000613          	li	a2,0
+ 3c4:	00000693          	li	a3,0
+ 3c8:	00008067          	ret
+
+00000000000003cc <div256>:
+ 3cc:	00000513          	li	a0,0
+ 3d0:	00000593          	li	a1,0
+ 3d4:	00000613          	li	a2,0
+ 3d8:	00000693          	li	a3,0
+ 3dc:	00008067          	ret
+
+00000000000003e0 <mod256>:
+ 3e0:	00000513          	li	a0,0
+ 3e4:	00000593          	li	a1,0
+ 3e8:	00000613          	li	a2,0
+ 3ec:	00000693          	li	a3,0
+ 3f0:	00008067          	ret
+
+00000000000003f4 <addmod256>:
+ 3f4:	f35ff0ef          	jal	328 <add256>
+ 3f8:	fe9ff0ef          	jal	3e0 <mod256>
+ 3fc:	00008067          	ret
+
+0000000000000400 <mulmod256>:
+ 400:	fb9ff0ef          	jal	3b8 <mul256>
+ 404:	fddff0ef          	jal	3e0 <mod256>
+ 408:	00008067          	ret
+
+000000000000040c <exp256>:
+ 40c:	00100513          	li	a0,1
+ 410:	00000593          	li	a1,0
+ 414:	00000613          	li	a2,0
+ 418:	00000693          	li	a3,0
+ 41c:	00008067          	ret
+
+0000000000000420 <gt256>:
+ 420:	02d8e463          	bltu	a7,a3,448 <gt256_true>
+ 424:	03169663          	bne	a3,a7,450 <gt256_false>
+ 428:	02c86063          	bltu	a6,a2,448 <gt256_true>
+ 42c:	03061263          	bne	a2,a6,450 <gt256_false>
+ 430:	00b7ec63          	bltu	a5,a1,448 <gt256_true>
+ 434:	00f59e63          	bne	a1,a5,450 <gt256_false>
+ 438:	00a76863          	bltu	a4,a0,448 <gt256_true>
+ 43c:	00e51a63          	bne	a0,a4,450 <gt256_false>
+ 440:	00000513          	li	a0,0
+ 444:	00008067          	ret
+
+0000000000000448 <gt256_true>:
+ 448:	00100513          	li	a0,1
+ 44c:	00008067          	ret
+
+0000000000000450 <gt256_false>:
+ 450:	00000513          	li	a0,0
+ 454:	00008067          	ret
+
+0000000000000458 <eq256>:
+ 458:	00e51c63          	bne	a0,a4,470 <eq256_false>
+ 45c:	00f59a63          	bne	a1,a5,470 <eq256_false>
+ 460:	01061863          	bne	a2,a6,470 <eq256_false>
+ 464:	01169663          	bne	a3,a7,470 <eq256_false>
+ 468:	00100513          	li	a0,1
+ 46c:	00008067          	ret
+
+0000000000000470 <eq256_false>:
+ 470:	00000513          	li	a0,0
+ 474:	00008067          	ret
+
+0000000000000478 <iszero256>:
+ 478:	00b562b3          	or	t0,a0,a1
+ 47c:	00c2e2b3          	or	t0,t0,a2
+ 480:	00d2e2b3          	or	t0,t0,a3
+ 484:	0012b513          	seqz	a0,t0
+ 488:	00008067          	ret
+
+000000000000048c <and256>:
+ 48c:	00e57533          	and	a0,a0,a4
+ 490:	00f5f5b3          	and	a1,a1,a5
+ 494:	01067633          	and	a2,a2,a6
+ 498:	0116f6b3          	and	a3,a3,a7
+ 49c:	00008067          	ret
+
+00000000000004a0 <or256>:
+ 4a0:	00e56533          	or	a0,a0,a4
+ 4a4:	00f5e5b3          	or	a1,a1,a5
+ 4a8:	01066633          	or	a2,a2,a6
+ 4ac:	0116e6b3          	or	a3,a3,a7
+ 4b0:	00008067          	ret
+
+00000000000004b4 <xor256>:
+ 4b4:	00e54533          	xor	a0,a0,a4
+ 4b8:	00f5c5b3          	xor	a1,a1,a5
+ 4bc:	01064633          	xor	a2,a2,a6
+ 4c0:	0116c6b3          	xor	a3,a3,a7
+ 4c4:	00008067          	ret
+
+00000000000004c8 <not256>:
+ 4c8:	fff54513          	not	a0,a0
+ 4cc:	fff5c593          	not	a1,a1
+ 4d0:	fff64613          	not	a2,a2
+ 4d4:	fff6c693          	not	a3,a3
+ 4d8:	00008067          	ret
+
+00000000000004dc <shl256>:
+ 4dc:	ff010113          	addi	sp,sp,-16
+ 4e0:	00113423          	sd	ra,8(sp)
+ 4e4:	04070263          	beqz	a4,528 <shl256_done>
+ 4e8:	10000313          	li	t1,256
+ 4ec:	04677463          	bgeu	a4,t1,534 <shl256_zero>
+ 4f0:	00000393          	li	t2,0
+
+00000000000004f4 <shl256_loop>:
+ 4f4:	02e38a63          	beq	t2,a4,528 <shl256_done>
+ 4f8:	00151513          	slli	a0,a0,0x1
+ 4fc:	03f5de13          	srli	t3,a1,0x3f
+ 500:	01c56533          	or	a0,a0,t3
+ 504:	00159593          	slli	a1,a1,0x1
+ 508:	03f65e13          	srli	t3,a2,0x3f
+ 50c:	01c5e5b3          	or	a1,a1,t3
+ 510:	00161613          	slli	a2,a2,0x1
+ 514:	03f6de13          	srli	t3,a3,0x3f
+ 518:	01c66633          	or	a2,a2,t3
+ 51c:	00169693          	slli	a3,a3,0x1
+ 520:	00138393          	addi	t2,t2,1 # 10001 <STACK_SIZE+0xf001>
+ 524:	fd1ff06f          	j	4f4 <shl256_loop>
+
+0000000000000528 <shl256_done>:
+ 528:	00813083          	ld	ra,8(sp)
+ 52c:	01010113          	addi	sp,sp,16
+ 530:	00008067          	ret
+
+0000000000000534 <shl256_zero>:
+ 534:	00000513          	li	a0,0
+ 538:	00000593          	li	a1,0
+ 53c:	00000613          	li	a2,0
+ 540:	00000693          	li	a3,0
+ 544:	00813083          	ld	ra,8(sp)
+ 548:	01010113          	addi	sp,sp,16
+ 54c:	00008067          	ret
+
+0000000000000550 <shr256>:
+ 550:	ff010113          	addi	sp,sp,-16
+ 554:	00113423          	sd	ra,8(sp)
+ 558:	04070263          	beqz	a4,59c <shr256_done>
+ 55c:	10000313          	li	t1,256
+ 560:	04677463          	bgeu	a4,t1,5a8 <shr256_zero>
+ 564:	00000393          	li	t2,0
+
+0000000000000568 <shr256_loop>:
+ 568:	02e38a63          	beq	t2,a4,59c <shr256_done>
+ 56c:	0016d693          	srli	a3,a3,0x1
+ 570:	03f61e13          	slli	t3,a2,0x3f
+ 574:	01c6e6b3          	or	a3,a3,t3
+ 578:	00165613          	srli	a2,a2,0x1
+ 57c:	03f59e13          	slli	t3,a1,0x3f
+ 580:	01c66633          	or	a2,a2,t3
+ 584:	0015d593          	srli	a1,a1,0x1
+ 588:	03f51e13          	slli	t3,a0,0x3f
+ 58c:	01c5e5b3          	or	a1,a1,t3
+ 590:	00155513          	srli	a0,a0,0x1
+ 594:	00138393          	addi	t2,t2,1
+ 598:	fd1ff06f          	j	568 <shr256_loop>
+
+000000000000059c <shr256_done>:
+ 59c:	00813083          	ld	ra,8(sp)
+ 5a0:	01010113          	addi	sp,sp,16
+ 5a4:	00008067          	ret
+
+00000000000005a8 <shr256_zero>:
+ 5a8:	00000513          	li	a0,0
+ 5ac:	00000593          	li	a1,0
+ 5b0:	00000613          	li	a2,0
+ 5b4:	00000693          	li	a3,0
+ 5b8:	00813083          	ld	ra,8(sp)
+ 5bc:	01010113          	addi	sp,sp,16
+ 5c0:	00008067          	ret
+
+00000000000005c4 <sar256>:
+ 5c4:	ff010113          	addi	sp,sp,-16
+ 5c8:	00113423          	sd	ra,8(sp)
+ 5cc:	04070863          	beqz	a4,61c <sar256_done>
+ 5d0:	10000313          	li	t1,256
+ 5d4:	04677a63          	bgeu	a4,t1,628 <sar256_max>
+ 5d8:	00000393          	li	t2,0
+
+00000000000005dc <sar256_loop>:
+ 5dc:	04e38063          	beq	t2,a4,61c <sar256_done>
+ 5e0:	03f6de93          	srli	t4,a3,0x3f
+ 5e4:	4016d693          	srai	a3,a3,0x1
+ 5e8:	00165613          	srli	a2,a2,0x1
+ 5ec:	03f59e13          	slli	t3,a1,0x3f
+ 5f0:	01c66633          	or	a2,a2,t3
+ 5f4:	0015d593          	srli	a1,a1,0x1
+ 5f8:	03f51e13          	slli	t3,a0,0x3f
+ 5fc:	01c5e5b3          	or	a1,a1,t3
+ 600:	00155513          	srli	a0,a0,0x1
+ 604:	00100e13          	li	t3,1
+ 608:	03fe1e13          	slli	t3,t3,0x3f
+ 60c:	000e8463          	beqz	t4,614 <sar256_skip_sign>
+ 610:	01c56533          	or	a0,a0,t3
+
+0000000000000614 <sar256_skip_sign>:
+ 614:	00138393          	addi	t2,t2,1
+ 618:	fc5ff06f          	j	5dc <sar256_loop>
+
+000000000000061c <sar256_done>:
+ 61c:	00813083          	ld	ra,8(sp)
+ 620:	01010113          	addi	sp,sp,16
+ 624:	00008067          	ret
+
+0000000000000628 <sar256_max>:
+ 628:	03f6d293          	srli	t0,a3,0x3f
+ 62c:	f6028ee3          	beqz	t0,5a8 <shr256_zero>
+ 630:	fff00513          	li	a0,-1
+ 634:	fff00593          	li	a1,-1
+ 638:	fff00613          	li	a2,-1
+ 63c:	fff00693          	li	a3,-1
+ 640:	00813083          	ld	ra,8(sp)
+ 644:	01010113          	addi	sp,sp,16
+ 648:	00008067          	ret
+
+000000000000064c <evm_revert>:
+ 64c:	00050a13          	mv	s4,a0
+ 650:	00058a93          	mv	s5,a1
+ 654:	00000513          	li	a0,0
+ 658:	00008067          	ret
+
+000000000000065c <evm_return>:
+ 65c:	00050a13          	mv	s4,a0
+ 660:	00058a93          	mv	s5,a1
+ 664:	00100513          	li	a0,1
+ 668:	00008067          	ret
+
+000000000000066c <_revert_out_of_gas>:
+ 66c:	00010537          	lui	a0,0x10
+ 670:	fff5051b          	addiw	a0,a0,-1 # ffff <STACK_SIZE+0xefff>
+ 674:	0100006f          	j	684 <_exit>
+
+0000000000000678 <_invalid>:
+ 678:	00010537          	lui	a0,0x10
+ 67c:	ffe5051b          	addiw	a0,a0,-2 # fffe <STACK_SIZE+0xeffe>
+ 680:	0040006f          	j	684 <_exit>
+
+0000000000000684 <_exit>:
+ 684:	ff010113          	addi	sp,sp,-16
+ 688:	00113023          	sd	ra,0(sp)
+ 68c:	05d00893          	li	a7,93
+ 690:	00000073          	ecall
+ 694:	00013083          	ld	ra,0(sp)
+ 698:	01010113          	addi	sp,sp,16
+ 69c:	00008067          	ret
+
+00000000000006a0 <memcpy>:
+ 6a0:	02060663          	beqz	a2,6cc <memcpy_done>
+ 6a4:	00008e37          	lui	t3,0x8
+ 6a8:	02ce4263          	blt	t3,a2,6cc <memcpy_done>
+ 6ac:	00000e13          	li	t3,0
+
+00000000000006b0 <memcpy_loop>:
+ 6b0:	00ce5e63          	bge	t3,a2,6cc <memcpy_done>
+ 6b4:	00058e83          	lb	t4,0(a1)
+ 6b8:	01d50023          	sb	t4,0(a0)
+ 6bc:	00150513          	addi	a0,a0,1
+ 6c0:	00158593          	addi	a1,a1,1
+ 6c4:	001e0e13          	addi	t3,t3,1 # 8001 <STACK_SIZE+0x7001>
+ 6c8:	fe9ff06f          	j	6b0 <memcpy_loop>
+
+00000000000006cc <memcpy_done>:
+ 6cc:	00008067          	ret
+
+00000000000006d0 <evm_codecopy>:
+ 6d0:	00000513          	li	a0,0
+ 6d4:	00008067          	ret
