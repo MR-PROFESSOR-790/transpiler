@@ -1,7 +1,8 @@
+ENTRY(evm_entry)
 MEMORY
 {
-    TEXT (rx)  : ORIGIN = 0x10000, LENGTH = 0x8000   /* 32KB for code */
-    DATA (rw)  : ORIGIN = 0x18000, LENGTH = 0x8000   /* 32KB for data */
+    TEXT (rx) : ORIGIN = 0x10000, LENGTH = 0x8000
+    DATA (rw) : ORIGIN = 0x18000, LENGTH = 0x8000
 }
 SECTIONS
 {

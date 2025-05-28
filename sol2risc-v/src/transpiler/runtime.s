@@ -1,18 +1,20 @@
 # runtime.s - Core EVM Runtime Support in RISC-V Assembly
 # Fully valid RISC-V 64-bit code that can be assembled with riscv64-unknown-elf-as
 
-.section .text
-.align 2
 .section .rodata
 .align 2
-calldata_size:
-    .word 0x00000000
-
+calldata_size: .word 0x00000000 
 .section .bss
 .align 8
 MEM_BASE = 0x00100000
 STACK_BASE = 0x00120000
+CALLDATA_BASE = 0x00110000
+STACK_SIZE = 4096
+MEM_CLEAR_SIZE = 512
+.section .text 
+.align 2
 .globl _start
+.global _exit
 .global tohost
 .global fromhost
 tohost: .dword 0
