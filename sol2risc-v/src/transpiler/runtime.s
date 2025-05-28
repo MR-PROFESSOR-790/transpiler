@@ -3,7 +3,15 @@
 
 .section .text
 .align 2
+.section .rodata
+.align 2
+calldata_size:
+    .word 0x00000000
 
+.section .bss
+.align 8
+MEM_BASE = 0x00100000
+STACK_BASE = 0x00120000
 .globl _start
 
 .globl deduct_gas
@@ -156,7 +164,7 @@ stack_push_256:
     sd a1, 8(sp)
     sd a2, 16(sp)
     sd a3, 24(sp)
-    jr ra
+    ret
 
 # Pop 256-bit value from stack into a0-a3
 stack_pop_256:
@@ -165,7 +173,7 @@ stack_pop_256:
     ld a2, 16(sp)
     ld a3, 24(sp)
     addi sp, sp, 32
-    jr ra
+    ret
 
 # ---------------------------
 # Gas Metering
@@ -174,9 +182,19 @@ stack_pop_256:
 # deduct_gas: Deduct a fixed amount of gas
 # Input: a0 = gas cost
 deduct_gas:
-    addi sp, sp, -16       # Reserve stack space
-    sd ra, 8(sp)           # Save return address
+    .cfi_startproc
+    addi sp, sp, -16
+    .cfi_adjust_cfa_offset 16
+    sd ra, 8(sp)
+    .cfi_offset ra, -8
     
+    ld ra, 8(sp)
+    addi sp, sp, 16
+    .cfi_restore ra
+    .cfi_adjust_cfa_offset -16
+    ret
+    .cfi_endproc
+
     # Check if gas is already zero or negative
     blez s1, _gas_already_zero
     
@@ -211,13 +229,13 @@ get_call_value:
     li a1, 0
     li a2, 0
     li a3, 0
-    jr ra
+    ret
 
 # calldatasize: Return size of input data
 calldatasize:
     la t0, calldata_size
     lw a0, 0(t0)
-    jr ra
+    ret
 
 # calldataload: Load 256-bit value from calldata with safety checks
 # Input: a0 = offset on stack
@@ -322,7 +340,7 @@ calldatacopy:
 calldatacopy_done:
     ld ra, 8(sp)
     addi sp, sp, 16
-    jr ra
+    ret
 
 # ---------------------------
 # Memory Management
@@ -430,7 +448,8 @@ keccak256:
     li a1, 0
     li a2, 0
     li a3, 0
-    jr ra
+    ret
+
 
 # ---------------------------
 # Arithmetic Operations
@@ -457,7 +476,7 @@ add256:
 
     ld ra, 0(sp)
     addi sp, sp, 8
-    jr ra
+    ret
 
 # sub256: Subtract two 256-bit numbers
 sub256:
@@ -480,7 +499,7 @@ sub256:
 
     ld ra, 0(sp)
     addi sp, sp, 8
-    jr ra
+    ret
 
 # mul256: Multiply two 256-bit numbers (placeholder)
 mul256:
@@ -488,7 +507,7 @@ mul256:
     li a1, 0
     li a2, 0
     li a3, 0
-    jr ra
+    ret
 
 # div256: 256-bit division (placeholder)
 div256:
@@ -496,7 +515,7 @@ div256:
     li a1, 0
     li a2, 0
     li a3, 0
-    jr ra
+    ret
 
 # mod256: 256-bit modulo operation (placeholder)
 mod256:
@@ -504,19 +523,19 @@ mod256:
     li a1, 0
     li a2, 0
     li a3, 0
-    jr ra
+    ret
 
 # addmod256: (a + b) % N
 addmod256:
     jal ra, add256
     jal ra, mod256
-    jr ra
+    ret
 
 # mulmod256: (a * b) % N
 mulmod256:
     jal ra, mul256
     jal ra, mod256
-    jr ra
+    ret
 
 # exp256: a^b
 exp256:
@@ -524,7 +543,7 @@ exp256:
     li a1, 0
     li a2, 0
     li a3, 0
-    jr ra
+    ret
 
 # ---------------------------
 # Comparison Operations
@@ -541,13 +560,13 @@ gt256:
     bgtu a0, a4, gt256_true
     bne a0, a4, gt256_false
     li a0, 0
-    jr ra
+    ret
 gt256_true:
     li a0, 1
-    jr ra
+    ret
 gt256_false:
     li a0, 0
-    jr ra
+    ret
 
 # eq256: Check if two 256-bit values are equal
 eq256:
@@ -556,10 +575,10 @@ eq256:
     bne a2, a6, eq256_false
     bne a3, a7, eq256_false
     li a0, 1
-    jr ra
+    ret
 eq256_false:
     li a0, 0
-    jr ra
+    ret
 
 # iszero256: Check if 256-bit value is zero
 iszero256:
@@ -567,7 +586,7 @@ iszero256:
     or t0, t0, a2
     or t0, t0, a3
     seqz a0, t0
-    jr ra
+    ret
 
 # ---------------------------
 # Bitwise Operations
@@ -579,7 +598,7 @@ and256:
     and a1, a1, a5
     and a2, a2, a6
     and a3, a3, a7
-    jr ra
+    ret
 
 # or256: Bitwise OR
 or256:
@@ -587,7 +606,7 @@ or256:
     or a1, a1, a5
     or a2, a2, a6
     or a3, a3, a7
-    jr ra
+    ret
 
 # xor256: Bitwise XOR
 xor256:
@@ -595,7 +614,7 @@ xor256:
     xor a1, a1, a5
     xor a2, a2, a6
     xor a3, a3, a7
-    jr ra
+    ret
 
 # not256: Bitwise NOT
 not256:
@@ -603,7 +622,7 @@ not256:
     not a1, a1
     not a2, a2
     not a3, a3
-    jr ra
+    ret
 
 # shl256: Shift left 256-bit number
 shl256:
@@ -644,7 +663,7 @@ shl256_loop:
 shl256_done:
     ld ra, 8(sp)
     addi sp, sp, 16
-    jr ra
+    ret
 
 shl256_zero:
     li a0, 0
@@ -653,7 +672,7 @@ shl256_zero:
     li a3, 0
     ld ra, 8(sp)
     addi sp, sp, 16
-    jr ra
+    ret
 
 # shr256: Logical right shift
 shr256:
@@ -691,7 +710,7 @@ shr256_loop:
 shr256_done:
     ld ra, 8(sp)
     addi sp, sp, 16
-    jr ra
+    ret
 
 shr256_zero:
     li a0, 0
@@ -700,7 +719,7 @@ shr256_zero:
     li a3, 0
     ld ra, 8(sp)
     addi sp, sp, 16
-    jr ra
+    ret
 
 # sar256: Arithmetic right shift
 sar256:
@@ -747,7 +766,7 @@ sar256_skip_sign:
 sar256_done:
     ld ra, 8(sp)
     addi sp, sp, 16
-    jr ra
+    ret
 
 sar256_max:
     # Fill with sign bits
@@ -759,7 +778,7 @@ sar256_max:
     li a3, -1
     ld ra, 8(sp)
     addi sp, sp, 16
-    jr ra
+    ret
 
 # ---------------------------
 # Exit & Error Handling
@@ -771,7 +790,7 @@ evm_revert:
     mv s4, a0          # RETURN_DATA_OFFSET = a0  
     mv s5, a1          # RETURN_DATA_SIZE = a1
     li a0, 0
-    jr ra
+    ret
 
 # evm_return: Normal return
 evm_return:
@@ -779,7 +798,7 @@ evm_return:
     mv s4, a0          # RETURN_DATA_OFFSET = a0
     mv s5, a1          # RETURN_DATA_SIZE = a1
     li a0, 1
-    jr ra
+    ret
 
 # _revert_out_of_gas: Out of gas error handler
 _revert_out_of_gas:
@@ -795,13 +814,12 @@ _invalid:
 
 # _exit: End execution with proper syscall
 _exit:
-    li a7, 93          # syscall number for exit
-    li a0, 0           # exit code
-    ecall              # exit syscall
-    
-    # Should never reach here, but just in case
-    j _exit            # infinite loop
-
+    addi sp, sp, -16
+    sd ra, 0(sp)
+    li a7, 93
+    li a0, 0
+    ecall
+    j _exit
 # ---------------------------
 # Helper Functions
 # ---------------------------
@@ -819,20 +837,13 @@ memcpy:
     # Efficient copying with bounds check
     li t3, 0                   # Counter
 memcpy_loop:
-    bge t3, a2, memcpy_done    # Check if we're done
-    
-    # Load byte from source
-    add t4, a1, t3
-    lbu t5, 0(t4)
-    
-    # Store byte to destination
-    add t4, a0, t3
-    sb t5, 0(t4)
-    
-    # Increment counter
+    bge t3, a2, memcpy_done
+    lb t4, 0(a1)
+    sb t4, 0(a0)
+    addi a0, a0, 1
+    addi a1, a1, 1
     addi t3, t3, 1
     j memcpy_loop
-    
 memcpy_done:
     ret
 
@@ -843,14 +854,12 @@ memcpy_done:
 # Add stubs for undefined functions to avoid linker errors
 evm_codecopy:
     li a0, 0
-    jr ra
+   ret
 
 # Stub implementation for evm_entry if it's not defined
 
 .section .rodata
 .align 3
-calldata_size:
-    .word 0x00              # Placeholder for calldata size
 
 .section .bss
 .align 4
