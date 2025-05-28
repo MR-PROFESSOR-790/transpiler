@@ -1,3 +1,11 @@
+GNU ld (2.43.1-5+7) 2.43.1
+  Supported emulations:
+   elf64lriscv
+   elf32lriscv
+   elf64briscv
+   elf32briscv
+using external linker script: linker.ld
+==================================================
 ENTRY(_start)
 MEMORY
 {
@@ -36,3 +44,9 @@ SECTIONS
     . += 8;
   } > DATA
 }
+==================================================
+riscv64-unknown-elf-ld: mode elf64lriscv
+attempt to open runtime.o succeeded
+runtime.o
+attempt to open output.o succeeded
+output.o
