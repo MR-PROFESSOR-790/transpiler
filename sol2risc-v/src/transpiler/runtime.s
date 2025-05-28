@@ -13,7 +13,10 @@ calldata_size:
 MEM_BASE = 0x00100000
 STACK_BASE = 0x00120000
 .globl _start
-
+.global tohost
+.global fromhost
+tohost: .dword 0
+fromhost: .dword 0
 .globl deduct_gas
 .globl get_call_value
 .globl evm_revert
@@ -187,7 +190,6 @@ deduct_gas:
     .cfi_adjust_cfa_offset 16
     sd ra, 8(sp)
     .cfi_offset ra, -8
-    
     ld ra, 8(sp)
     addi sp, sp, 16
     .cfi_restore ra
