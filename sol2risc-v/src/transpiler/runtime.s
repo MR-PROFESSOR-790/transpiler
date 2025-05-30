@@ -74,15 +74,13 @@ evm_stack:
 # Entry Point
 # ---------------------------
 
+.section .text.start, "ax", @progbits
 _start:
-  # Set up stack with alignment
-  li sp, STACK_BASE          # STACK_BASE = 0x0003a610
-  li t0, 512          # STACK_SIZE = 4096
-  add sp, sp, t0             # sp = 0x0003a610 + 4096 = 0x0003b610
-  andi sp, sp, -16           # Align to 16 bytes (sp = 0x0003b610, already aligned)
-  addi sp, sp, -64           # Reserve space, sp = 0x0003b610 - 64 = 0x0003b5d0
-
-  # Save callee-saved registers
+  li sp, STACK_BASE
+  li t0, STACK_SIZE
+  add sp, sp, t0
+  andi sp, sp, -16
+  addi sp, sp, -64
   sd ra, 0(sp)
   sd s0, 8(sp)
   sd s1, 16(sp)
@@ -91,32 +89,16 @@ _start:
   sd s4, 40(sp)
   sd s5, 48(sp)
   sd s6, 56(sp)
-
-  # Initialize memory base
   li s0, MEM_BASE
-
-  # Initialize gas counter
-  li s1, 1000000        # Start with 1M gas
-
-  # Initialize return data registers
-  li s4, 0              # RETURN_DATA_OFFSET
-  li s5, 0              # RETURN_DATA_SIZE
-
+  li s1, 1000000
+  li s4, 0
+  li s5, 0
   # Clear memory
-  li t0, MEM_BASE
-  li t1, 0              # Fill value
-  li t2, MEM_CLEAR_SIZE # Bytes to clear
-.clear_mem:
-  beqz t2, .clear_mem_done
-  sb t1, 0(t0)          # Store 0
-  addi t0, t0, 1
-  addi t2, t2, -1
-  j .clear_mem
-.clear_mem_done:
-
-  # Initialize calldata area
+  call clear_memory
+  # Clear calldata
   li t0, CALLDATA_BASE
-  li t2, 128            # Clear 128 bytes
+  li t1, 0
+  li t2, 128
 .clear_calldata:
   beqz t2, .clear_calldata_done
   sb t1, 0(t0)
@@ -124,7 +106,6 @@ _start:
   addi t2, t2, -1
   j .clear_calldata
 .clear_calldata_done:
-
   # Set calldata size
   la t0, calldata_size
   li t1, 0
@@ -326,7 +307,7 @@ mload:
   add t0, s0, a0
 
   li t1, MEM_BASE
-  li t2, 0x10000
+  li t2, 0x4000
   add t3, t1, t2
   bgeu t0, t3, mload_out_of_bounds
 
@@ -371,7 +352,7 @@ mstore_out_of_bounds:
   ret
 
 mstore8:
-  li t1, 0x10000
+  li t1, 0x4000
   bgeu a0, t1, mstore8_out_of_bounds
   add t0, s0, a0
   sb a1, 0(t0)
@@ -738,3 +719,16 @@ evm_codecopy:
 .section .bss
 .align 4
 .section .text
+
+clear_memory:
+  li t0, MEM_BASE
+  li t1, 0
+  li t2, MEM_CLEAR_SIZE
+.clear_mem:
+  beqz t2, .clear_mem_done
+  sb t1, 0(t0)
+  addi t0, t0, 1
+  addi t2, t2, -1
+  j .clear_mem
+.clear_mem_done:
+  ret
