@@ -23,6 +23,12 @@ SECTIONS
     *(.data)
     *(.data.*)
   } > DATA
+  .evm_memory :
+  {
+    . = ALIGN(32);
+    evm_memory = .;
+    . += 0x10000;  # 64 KB for EVM memory
+  } > DATA
   .bss :
   {
     . = ALIGN(32);  /* Align for 256-bit stack slots, if needed */

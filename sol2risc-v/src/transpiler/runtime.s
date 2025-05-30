@@ -11,10 +11,10 @@ calldata_size:
 .section .bss
 .align 8
 # Memory layout constants
-MEM_BASE = 0x00100000
-STACK_BASE = 0x0003a610  # Adjusted to fit within DATA section (0x1a710 to 0x3a710)
-CALLDATA_BASE = 0x00110000
-STACK_SIZE = 4096
+MEM_BASE = 0x0020000
+STACK_BASE = 0x0029000  # Adjusted to fit within DATA section (0x1a710 to 0x3a710)
+CALLDATA_BASE = 0x0020400
+STACK_SIZE = 512
 MEM_CLEAR_SIZE = 512
 
 tohost:
@@ -77,7 +77,7 @@ evm_stack:
 _start:
   # Set up stack with alignment
   li sp, STACK_BASE          # STACK_BASE = 0x0003a610
-  li t0, STACK_SIZE          # STACK_SIZE = 4096
+  li t0, 512          # STACK_SIZE = 4096
   add sp, sp, t0             # sp = 0x0003a610 + 4096 = 0x0003b610
   andi sp, sp, -16           # Align to 16 bytes (sp = 0x0003b610, already aligned)
   addi sp, sp, -64           # Reserve space, sp = 0x0003b610 - 64 = 0x0003b5d0

@@ -17,7 +17,7 @@ sd   s3,  24(sp)
 sd   s4,  16(sp)
 sd   s5,  8(sp)
 sd   s6,  0(sp)
-li   s0,  0x10000000
+li   s0,  0x1a710
 li   s1,  100000
 la   s2,  evm_stack
 li   s3,  0
@@ -67,7 +67,7 @@ ld   t2,  8(t0)              # val limb0
 ld   t3,  16(t0)             # val limb1
 ld   t4,  24(t0)             # val limb2
 ld   t5,  32(t0)             # val limb3
-li   t0,  0x10000             # Memory bound
+li   t0,  0x4000             # Memory bound
 bgeu t1,  t0,  mstore_out_of_bounds_mstore_0 # Check offset
 add  t1,  t1,  s0              # effective addr = offset + MEM_BASE
 sd   t2,  0(t1)              # Store 256-bit value
@@ -5691,7 +5691,7 @@ ld   t2,  8(t0)              # val limb0
 ld   t3,  16(t0)             # val limb1
 ld   t4,  24(t0)             # val limb2
 ld   t5,  32(t0)             # val limb3
-li   t0,  0x10000             # Memory bound
+li   t0,  0x4000             # Memory bound
 bgeu t1,  t0,  mstore_out_of_bounds_mstore_1 # Check offset
 add  t1,  t1,  s0              # effective addr = offset + MEM_BASE
 sd   t2,  0(t1)              # Store 256-bit value

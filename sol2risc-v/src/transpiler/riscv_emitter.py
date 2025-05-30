@@ -123,7 +123,7 @@ class RiscvEmitter:
             "sd   s4, 16(sp)",
             "sd   s5, 8(sp)",
             "sd   s6, 0(sp)",
-            "li   s0, 0x10000000",    # MEM_BASE
+            "li   s0, 0x1a710",    # MEM_BASE
             "li   s1, 100000",        # GAS_REGISTER (initial gas), adjustable
             "la   s2, evm_stack",     # EVM stack base
             "li   s3, 0",             # EVM stack pointer (index of 256-bit slots)
@@ -715,7 +715,7 @@ class RiscvEmitter:
                 riscv_lines.append("ld   t3, 16(t0)              # val limb1")
                 riscv_lines.append("ld   t4, 24(t0)              # val limb2")
                 riscv_lines.append("ld   t5, 32(t0)              # val limb3")
-                riscv_lines.append("li   t0, 0x10000             # Memory bound")
+                riscv_lines.append("li   t0, 0x4000             # Memory bound")
                 riscv_lines.append(f"bgeu t1, t0, mstore_out_of_bounds_mstore_{label_id} # Check offset")
                 riscv_lines.append("add  t1, t1, s0              # effective addr = offset + MEM_BASE")
                 riscv_lines.append("sd   t2, 0(t1)               # Store 256-bit value")
@@ -738,7 +738,7 @@ class RiscvEmitter:
                 riscv_lines.append("add  t0, s2, t0")
                 riscv_lines.append("ld   t1, 0(t0)               # offset")
                 riscv_lines.append("ld   t2, 8(t0)               # value (only lowest byte matters)")
-                riscv_lines.append("li   t0, 0x10000             # Memory bound")
+                riscv_lines.append("li   t0, 0x4000             # Memory bound")
                 riscv_lines.append(f"bgeu t1, t0, mstore8_out_of_bounds_mstore8_{label_id} # Check offset")
                 riscv_lines.append("add  t1, t1, s0              # addr = offset + MEM_BASE")
                 riscv_lines.append("andi t2, t2, 0xff            # Mask to 1 byte")
