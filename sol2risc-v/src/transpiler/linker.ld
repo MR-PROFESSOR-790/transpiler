@@ -6,6 +6,7 @@ MEMORY
 }
 SECTIONS
 {
+  . = 0x10000;  /* Force all sections to start at 0x10000 */
   .text :
   {
     KEEP(runtime.o(.text))
@@ -24,6 +25,9 @@ SECTIONS
   } > DATA
   .bss :
   {
+    . = ALIGN(32);  /* Align for 256-bit stack slots, if needed */
+    evm_stack = .;  /* Define evm_stack symbol */
+    . += 4096;      /* Reserve 4096 bytes for stack */
     *(.bss)
     *(.bss.*)
   } > DATA
