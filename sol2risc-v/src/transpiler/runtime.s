@@ -12,7 +12,7 @@ calldata_size:
 .align 8
 # Memory layout constants
 MEM_BASE = 0x00100000
-STACK_BASE = 0x0003a610
+STACK_BASE = 0x0003a610  # Adjusted to fit within DATA section (0x1a710 to 0x3a710)
 CALLDATA_BASE = 0x00110000
 STACK_SIZE = 4096
 MEM_CLEAR_SIZE = 512
@@ -76,13 +76,11 @@ evm_stack:
 
 _start:
   # Set up stack with alignment
-  li sp, STACK_BASE
-  li t0, STACK_SIZE
-  add sp, sp, t0
-  andi sp, sp, -16      # 16-byte alignment
-
-  # Reserve space for saved registers
-  addi sp, sp, -64
+  li sp, STACK_BASE          # STACK_BASE = 0x0003a610
+  li t0, STACK_SIZE          # STACK_SIZE = 4096
+  add sp, sp, t0             # sp = 0x0003a610 + 4096 = 0x0003b610
+  andi sp, sp, -16           # Align to 16 bytes (sp = 0x0003b610, already aligned)
+  addi sp, sp, -64           # Reserve space, sp = 0x0003b610 - 64 = 0x0003b5d0
 
   # Save callee-saved registers
   sd ra, 0(sp)
