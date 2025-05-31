@@ -65,6 +65,7 @@ evm_stack:
 .globl mstore
 .globl mstore8
 .globl evm_entry
+.globl clear_memory
 
 # Register aliases
 .set GAS_REGISTER, s1         # Track remaining gas
@@ -683,22 +684,7 @@ memcpy_loop:
 memcpy_done:
   ret
 
-# ---------------------------
-# Stub Functions
-# ---------------------------
-
-evm_codecopy:
-  li a0, 0
-  ret
-
-# Stub implementation for evm_entry if it's not defined
-.section .rodata
-.align 3
-
-.section .bss
-.align 4
-.section .text
-
+# Memory Clearing Function
 clear_memory:
     li t0, 0x20000            # MEM_BASE
     li t1, 0                  # Value to store (0)
@@ -711,3 +697,12 @@ clear_memory:
     j .clear_loop             # Repeat
 .clear_done:
     ret                       # Return to address in ra
+
+# ---------------------------
+# Stub Functions
+# ---------------------------
+
+evm_codecopy:
+  li a0, 0
+  ret
+

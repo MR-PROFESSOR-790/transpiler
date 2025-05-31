@@ -1,4 +1,4 @@
-ENTRY(_start)  /* Explicitly set the entry point to _start */
+ENTRY(_start)
 
 MEMORY
 {
@@ -14,6 +14,7 @@ SECTIONS
   } > TEXT
   .text :
   {
+    . = ALIGN(4);                 /* Ensure 4-byte alignment */
     KEEP(runtime.o(.text))        /* clear_memory */
     KEEP(output.o(.text.evm_entry))  /* evm_entry */
     *(.text .text.*)              /* Other text sections */
