@@ -76,49 +76,38 @@ evm_stack:
 # ---------------------------
 
 .section .text.start, "ax", @progbits
+.global _start
 _start:
-  li sp, STACK_BASE
-  li t0, STACK_SIZE
-  add sp, sp, t0
-  andi sp, sp, -16
-  addi sp, sp, -64
-  sd ra, 0(sp)
-  sd s0, 8(sp)
-  sd s1, 16(sp)
-  sd s2, 24(sp)
-  sd s3, 32(sp)
-  sd s4, 40(sp)
-  sd s5, 48(sp)
-  sd s6, 56(sp)
-  li s0, MEM_BASE
-  li s1, 1000000
-  li s4, 0
-  li s5, 0
-  jal ra, clear_memory
-  li t0, CALLDATA_BASE
-  li t1, 0
-  li t2, 128
-.clear_calldata:
-  beqz t2, .clear_calldata_done
-  sb t1, 0(t0)
-  addi t0, t0, 1
-  addi t2, t2, -1
-  j .clear_calldata
-.clear_calldata_done:
-  la t0, calldata_size
-  sw zero, 0(t0)
-  jal ra, evm_entry
-  # Exit (simplified)
-  ld ra, 0(sp)
-  ld s0, 8(sp)
-  ld s1, 16(sp)
-  ld s2, 24(sp)
-  ld s3, 32(sp)
-  ld s4, 40(sp)
-  ld s5, 48(sp)
-  ld s6, 56(sp)
-  addi sp, sp, 64
-  ret
+    # Initialize stack pointer
+    li sp, 0x0029000          # STACK_BASE
+    li t0, 512                # STACK_SIZE
+    add sp, sp, t0            # sp = 0x0029200
+    andi sp, sp, -16          # Align to 16-byte boundary
+
+    # Save registers (optional, but good practice)
+    addi sp, sp, -64
+    sd ra, 0(sp)
+    sd s0, 8(sp)
+    sd s1, 16(sp)
+
+    # Initialize registers
+    li s0, 0x0020000          # MEM_BASE
+    li s1, 1000000            # Initial gas
+
+    # Call clear_memory
+    jal ra, clear_memory      # ra = address of next instruction
+
+    # Call evm_entry (from output.o)
+    jal ra, evm_entry         # Continue to EVM execution
+
+    # Restore registers
+    ld ra, 0(sp)
+    ld s0, 8(sp)
+    ld s1, 16(sp)
+    addi sp, sp, 64
+
+    # Exit cleanly
+    j _exit                   # Use _exit to terminate
 
 # Safety wrapper for evm_entry
 safe_call_evm:
@@ -711,14 +700,14 @@ evm_codecopy:
 .section .text
 
 clear_memory:
-  li t0, MEM_BASE
-  li t1, 0
-  li t2, MEM_CLEAR_SIZE
-.clear_mem:
-  beqz t2, .clear_mem_done
-  sb t1, 0(t0)
-  addi t0, t0, 1
-  addi t2, t2, -1
-  j .clear_mem
-.clear_mem_done:
-  ret
+    li t0, 0x20000            # MEM_BASE
+    li t1, 0                  # Value to store (0)
+    li t2, 512                # MEM_CLEAR_SIZE
+.clear_loop:
+    beqz t2, .clear_done      # Exit loop when t2 == 0
+    sb t1, 0(t0)              # Store 0 at address in t0
+    addi t0, t0, 1            # Increment pointer
+    addi t2, t2, -1           # Decrement counter
+    j .clear_loop             # Repeat
+.clear_done:
+    ret                       # Return to address in ra

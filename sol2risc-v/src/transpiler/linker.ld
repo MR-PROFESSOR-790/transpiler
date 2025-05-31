@@ -1,4 +1,5 @@
-ENTRY(_start)
+ENTRY(_start)  /* Explicitly set the entry point to _start */
+
 MEMORY
 {
   TEXT (rx) : ORIGIN = 0x10000, LENGTH = 0x10000
@@ -9,17 +10,18 @@ SECTIONS
   . = 0x10000;
   .text.start :
   {
-    KEEP(*(.text.start))  /* _start */
+    KEEP(runtime.o(.text.start))  /* _start */
   } > TEXT
   .text :
   {
-    KEEP(*(.text))        /* clear_memory, evm_entry */
-    *(.text.*)
+    KEEP(runtime.o(.text))        /* clear_memory */
+    KEEP(output.o(.text.evm_entry))  /* evm_entry */
+    *(.text .text.*)              /* Other text sections */
   } > TEXT
   . = 0x20000;
   .data :
   {
-    KEEP(*(.data .data.*))  /* calldata_size */
+    KEEP(*(.data .data.*))
   } > DATA
   .rodata :
   {
@@ -52,4 +54,4 @@ SECTIONS
     *(.eh_frame)
     *(.note*)
   }
-} 
+}
