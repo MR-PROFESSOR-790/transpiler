@@ -7,23 +7,23 @@ MEMORY
 SECTIONS
 {
   . = 0x10000;
+  .text.start :
+  {
+    KEEP(*(.text.start))  /* _start */
+  } > TEXT
   .text :
   {
-    KEEP(runtime.o(.text.start))
-    KEEP(runtime.o(.text))
-    *(.text)
+    KEEP(*(.text))        /* clear_memory, evm_entry */
     *(.text.*)
   } > TEXT
   . = 0x20000;
-  .rodata :
-  {
-    *(.rodata)
-    *(.rodata.*)
-  } > DATA
   .data :
   {
-    *(.data)
-    *(.data.*)
+    KEEP(*(.data .data.*))  /* calldata_size */
+  } > DATA
+  .rodata :
+  {
+    *(.rodata .rodata.*)
   } > DATA
   .evm_memory :
   {
@@ -36,8 +36,7 @@ SECTIONS
     . = ALIGN(32);
     evm_stack = .;
     . += 4096;
-    *(.bss)
-    *(.bss.*)
+    *(.bss .bss.*)
   } > DATA
   .tohost :
   {
@@ -47,4 +46,10 @@ SECTIONS
     fromhost = .;
     . += 8;
   } > DATA
+  /DISCARD/ :
+  {
+    *(.comment)
+    *(.eh_frame)
+    *(.note*)
+  }
 } 

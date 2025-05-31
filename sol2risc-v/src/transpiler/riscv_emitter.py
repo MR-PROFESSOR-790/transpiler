@@ -112,6 +112,7 @@ class RiscvEmitter:
     """
         logging.info(f"Emitting prologue for {function_info['name']}")
         return [
+            f".section .text.evm_entry, \"ax\", @progbits",
             f".globl {function_info['name']}",
             f"{function_info['name']}:",
             "addi sp, sp, -64",       # Reserve stack space for callee-saved registers
@@ -123,7 +124,7 @@ class RiscvEmitter:
             "sd   s4, 16(sp)",
             "sd   s5, 8(sp)",
             "sd   s6, 0(sp)",
-            "li   s0, 0x1a710",    # MEM_BASE
+            "li   s0, 0x20000",    # MEM_BASE
             "li   s1, 100000",        # GAS_REGISTER (initial gas), adjustable
             "la   s2, evm_stack",     # EVM stack base
             "li   s3, 0",             # EVM stack pointer (index of 256-bit slots)

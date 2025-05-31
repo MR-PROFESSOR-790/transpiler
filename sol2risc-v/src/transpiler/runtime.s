@@ -16,6 +16,7 @@ STACK_BASE = 0x0029000  # Adjusted to fit within DATA section (0x1a710 to 0x3a71
 CALLDATA_BASE = 0x0020400
 STACK_SIZE = 512
 MEM_CLEAR_SIZE = 512
+EVM_MEMORY_SIZE = 16384
 
 tohost:
   .dword 0
@@ -93,9 +94,7 @@ _start:
   li s1, 1000000
   li s4, 0
   li s5, 0
-  # Clear memory
-  call clear_memory
-  # Clear calldata
+  jal ra, clear_memory
   li t0, CALLDATA_BASE
   li t1, 0
   li t2, 128
@@ -106,15 +105,10 @@ _start:
   addi t2, t2, -1
   j .clear_calldata
 .clear_calldata_done:
-  # Set calldata size
   la t0, calldata_size
-  li t1, 0
-  sw t1, 0(t0)
-
-  # Call contract entry point
-  call safe_call_evm
-
-  # Restore callee-saved registers
+  sw zero, 0(t0)
+  jal ra, evm_entry
+  # Exit (simplified)
   ld ra, 0(sp)
   ld s0, 8(sp)
   ld s1, 16(sp)
@@ -124,11 +118,7 @@ _start:
   ld s5, 48(sp)
   ld s6, 56(sp)
   addi sp, sp, 64
-
-  # Exit
-  li a7, 93             # Syscall: exit
-  li a0, 0              # Exit code 0
-  ecall
+  ret
 
 # Safety wrapper for evm_entry
 safe_call_evm:

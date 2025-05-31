@@ -6,6 +6,7 @@ jumpdest_table:
 
 .section .text
 
+.section .text.evm_entry,  "ax",  @progbits
 .globl evm_entry
 evm_entry:
 addi sp,  sp,  -64
@@ -17,7 +18,7 @@ sd   s3,  24(sp)
 sd   s4,  16(sp)
 sd   s5,  8(sp)
 sd   s6,  0(sp)
-li   s0,  0x1a710
+li   s0,  0x20000
 li   s1,  100000
 la   s2,  evm_stack
 li   s3,  0
