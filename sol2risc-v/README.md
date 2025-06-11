@@ -5,18 +5,18 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 -->
 
-# Sol2RISC-V: Solidity to RISC-V Transpiler
+# 🚀 Sol2RISC-V: Solidity to RISC-V Transpiler
 
 This project is a transpiler that converts Solidity smart contracts into RISC-V assembly code. It aims to bridge the gap between the Ethereum ecosystem and the RISC-V architecture, enabling developers to run Solidity contracts on RISC-V processors.
 
-## Getting Started
+## 🏁 Getting Started
 
-### Prerequisites
+### 📋 Prerequisites
 
 *   Python 3.x
 *   RISC-V Toolchain (for compiling and running the output)
 
-### Installation
+### ⚙️ Installation
 
 1.  Clone the repository:
     ```bash
@@ -35,7 +35,7 @@ This project is a transpiler that converts Solidity smart contracts into RISC-V 
         ```
         (Note: The wheel filename might vary depending on the exact version and build.)
 
-### Usage
+### ▶️ Usage
 
 1.  Prepare your Solidity contract (e.g., `MyContract.sol`).
 2.  Run the transpiler:
@@ -49,47 +49,47 @@ This project is a transpiler that converts Solidity smart contracts into RISC-V 
     ```
 4.  Run the compiled contract on a RISC-V simulator or hardware.
 
-## How it Works
+## 🛠️ How it Works
 
 The Sol2RISC-V transpiler follows these general steps:
 
-1.  **Parsing Solidity Code:** The input Solidity smart contract is first parsed to understand its structure and semantics. (Currently, this might involve parsing EVM bytecode if the transpiler works from bytecode).
-2.  **EVM Bytecode Analysis (If applicable):** If the transpiler works from EVM bytecode, this stage involves disassembling and analyzing the bytecode.
-3.  **Opcode Mapping:** EVM opcodes (from Solidity compilation) are mapped to equivalent sequences of RISC-V instructions. This is a crucial part of the transpilation logic.
-4.  **Register Allocation:** Efficiently manage the usage of RISC-V registers for storing variables and intermediate results.
-5.  **Memory Model Management:** Implement Solidity's memory and storage models within the RISC-V environment.
-6.  **RISC-V Code Generation:** Finally, the transpiler emits RISC-V assembly code that corresponds to the input Solidity contract.
+1.  📜 **Parsing Solidity Code:** The input Solidity smart contract is first parsed to understand its structure and semantics. (Currently, this might involve parsing EVM bytecode if the transpiler works from bytecode).
+2.  🔍 **EVM Bytecode Analysis (If applicable):** If the transpiler works from EVM bytecode, this stage involves disassembling and analyzing the bytecode.
+3.  🔄 **Opcode Mapping:** EVM opcodes (from Solidity compilation) are mapped to equivalent sequences of RISC-V instructions. This is a crucial part of the transpilation logic.
+4.  🧠 **Register Allocation:** Efficiently manage the usage of RISC-V registers for storing variables and intermediate results.
+5.  💾 **Memory Model Management:** Implement Solidity's memory and storage models within the RISC-V environment.
+6.  💻 **RISC-V Code Generation:** Finally, the transpiler emits RISC-V assembly code that corresponds to the input Solidity contract.
 
 The core components involved are:
-*   **EVM Parser (`evm_parser.py`):** Handles the initial processing of EVM bytecode.
-*   **Opcode Mapping Logic (`opcode_mapping.py`):** Contains the rules for converting EVM opcodes to RISC-V instructions.
-*   **RISC-V Emitter (`riscv_emitter.py`):** Generates the final RISC-V assembly code.
-*   **Register Allocator (`register_allocator.py`):** Manages register usage.
-*   **Memory Model (`memory_model.py`):** Implements memory operations.
+*   🧩 **EVM Parser (`evm_parser.py`):** Handles the initial processing of EVM bytecode.
+*   🧩 **Opcode Mapping Logic (`opcode_mapping.py`):** Contains the rules for converting EVM opcodes to RISC-V instructions.
+*   🧩 **RISC-V Emitter (`riscv_emitter.py`):** Generates the final RISC-V assembly code.
+*   🧩 **Register Allocator (`register_allocator.py`):** Manages register usage.
+*   🧩 **Memory Model (`memory_model.py`):** Implements memory operations.
 
-## Contributing
+## 🤝 Contributing
 
 Contributions are welcome and greatly appreciated! This project is open source, and we believe that collaboration is key to its success.
 
 Here are some ways you can contribute:
 
-*   **Reporting Bugs:** If you find a bug, please open an issue on GitHub and provide detailed information about the issue and how to reproduce it.
-*   **Suggesting Enhancements:** Have an idea for a new feature or an improvement to an existing one? Open an issue to discuss it.
-*   **Writing Code:** If you'd like to contribute code, please fork the repository and submit a pull request. Ensure your code follows the project's coding style and includes tests where appropriate.
-*   **Improving Documentation:** Clear and comprehensive documentation is vital. If you see areas where the documentation can be improved, please let us know or submit a pull request.
-*   **Testing:** Help us test the transpiler with various Solidity contracts and report any issues.
+*   🐛 **Reporting Bugs:** If you find a bug, please open an issue on GitHub and provide detailed information about the issue and how to reproduce it.
+*   💡 **Suggesting Enhancements:** Have an idea for a new feature or an improvement to an existing one? Open an issue to discuss it.
+*   ✍️ **Writing Code:** If you'd like to contribute code, please fork the repository and submit a pull request. Ensure your code follows the project's coding style and includes tests where appropriate.
+*   📚 **Improving Documentation:** Clear and comprehensive documentation is vital. If you see areas where the documentation can be improved, please let us know or submit a pull request.
+*   🧪 **Testing:** Help us test the transpiler with various Solidity contracts and report any issues.
 
 ### Areas where help is needed:
 
-*   Expanding the coverage of EVM opcodes.
-*   Optimizing the generated RISC-V code for performance and size.
-*   Adding support for more complex Solidity features.
-*   Developing more comprehensive test cases.
-*   Improving the build and deployment process.
+*   ➕ Expanding the coverage of EVM opcodes.
+*   ⚡ Optimizing the generated RISC-V code for performance and size.
+*   🧩 Adding support for more complex Solidity features.
+*   ✅ Developing more comprehensive test cases.
+*   🚀 Improving the build and deployment process.
 
 We look forward to your contributions!
 
-## License
+## 📄 License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
