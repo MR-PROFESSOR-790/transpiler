@@ -132,23 +132,63 @@ class RISCV_VM:
             # Extract entry point (64-bit little-endian at offset 24)
             self.elf_header.entry_point = struct.unpack('<Q', elf_data[24:32])[0]
             
-            # For now, load the entire file into memory at a fixed address
-            load_address = 0x10000  # Standard load address
-            if len(elf_data) > self.memory_size - load_address:
+            # For now, load the entire file into memory starting at address 0
+            if len(elf_data) > self.memory_size:
                 raise VMException("ELF file too large for memory")
             
             # Copy ELF data to memory
-            self.memory[load_address:load_address + len(elf_data)] = elf_data
+            self.memory[0:len(elf_data)] = elf_data
             
-            # Set PC to entry point
+            # Set up proper memory layout for RISC-V EVM execution
+            # Initialize memory regions that the transpiler expects
+            self.setup_memory_regions()
+            
+            # Set PC to entry point (typically 0x10000 for _start)
             self.cpu.pc = self.elf_header.entry_point
             
-            logger.info(f"ELF loaded: entry_point=0x{self.elf_header.entry_point:x}")
+            # Initialize stack pointer properly for RISC-V
+            # Based on the disassembly, _start sets up: lui sp,0x29; li t0,512; add sp,sp,t0; andi sp,sp,-16; addi sp,sp,-64
+            # This results in sp = 0x29000 + 512 = 0x29200, aligned to 16-byte boundary, then -64 = 0x291C0
+            self.cpu.sp = 0x29000 + 512  # Base stack address from disassembly
+            self.cpu.sp = self.cpu.sp & ~15  # Align to 16-byte boundary  
+            self.cpu.sp = self.cpu.sp - 64   # Initial frame
+            self.cpu.registers[2] = self.cpu.sp  # x2 is the stack pointer
+            
+            logger.info(f"ELF loaded: entry_point=0x{self.elf_header.entry_point:x}, sp=0x{self.cpu.sp:x}")
             return True
             
         except Exception as e:
             logger.error(f"Failed to load ELF file {elf_path}: {e}")
             return False
+    
+    def setup_memory_regions(self):
+        """Setup memory regions expected by the transpiler"""
+        # Based on disassembly, key memory regions:
+        # MEM_BASE = 0x20000 (used by calldatasize and others)
+        # CALLDATA_BASE = 0x20400
+        # STACK_BASE varies but around 0x29000
+        # EVM_STACK area around 0x26120
+        
+        # Initialize MEM_BASE area (0x20000)
+        mem_base = 0x20000
+        if mem_base + 1024 < len(self.memory):
+            # Clear MEM_BASE region
+            for i in range(1024):
+                self.memory[mem_base + i] = 0
+        
+        # Initialize CALLDATA_BASE area (0x20400) 
+        calldata_base = 0x20400
+        if calldata_base + 1024 < len(self.memory):
+            # Clear CALLDATA region
+            for i in range(1024):
+                self.memory[calldata_base + i] = 0
+        
+        # Initialize EVM stack area (around 0x26120)
+        evm_stack_base = 0x26120
+        if evm_stack_base + 0x1000 < len(self.memory):
+            # Clear EVM stack region
+            for i in range(0x1000):
+                self.memory[evm_stack_base + i] = 0
     
     def check_memory_access(self, address: int, size: int = 4, write: bool = False) -> bool:
         """Check if memory access is valid"""
