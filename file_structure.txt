@@ -28,5 +28,3 @@ sol2riscv/
     ├── logger.py
     ├── file_ops.py
     └── constants.py
-
-
